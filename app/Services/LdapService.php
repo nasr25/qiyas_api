@@ -1,0 +1,175 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Log;
+
+/**
+ * LdapService handles Active Directory queries and authentication.
+ * Uses native LDAP extension to avoid heavy AD packages.
+ */
+class LdapService
+{
+    private ?string $host;
+    private int     $port;
+    private string  $baseDn;
+    private ?string $bindUser;
+    private ?string $bindPassword;
+    private bool    $useSsl;
+    private bool    $useTls;
+
+    public function __construct()
+    {
+        $this->host         = config('ldap.host', env('LDAP_HOST'));
+        $this->port         = (int) config('ldap.port', env('LDAP_PORT', 389));
+        $this->baseDn       = config('ldap.base_dn', env('LDAP_BASE_DN', 'dc=company,dc=local'));
+        $this->bindUser     = config('ldap.username', env('LDAP_USERNAME'));
+        $this->bindPassword = config('ldap.password', env('LDAP_PASSWORD'));
+        $this->useSsl       = (bool) config('ldap.use_ssl', env('LDAP_USE_SSL', false));
+        $this->useTls       = (bool) config('ldap.use_tls', env('LDAP_USE_TLS', false));
+    }
+
+    /**
+     * Checks if LDAP is configured and available.
+     */
+    public function isConfigured(): bool
+    {
+        return !empty($this->host) && function_exists('ldap_connect');
+    }
+
+    /**
+     * Attempts to authenticate a user against Active Directory.
+     *
+     * @param string $username  SAM account name or UPN
+     * @param string $password  Plain text password
+     * @return array|null  User attributes on success, null on failure
+     */
+    public function authenticate(string $username, string $password): ?array
+    {
+        if (!$this->isConfigured()) {
+            Log::warning('LDAP not configured');
+            return null;
+        }
+
+        try {
+            $protocol = $this->useSsl ? 'ldaps://' : 'ldap://';
+            $conn     = ldap_connect("{$protocol}{$this->host}", $this->port);
+
+            ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
+            ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
+
+            if ($this->useTls) {
+                ldap_start_tls($conn);
+            }
+
+            // Determine bind DN (support UPN or sAMAccountName)
+            $bindDn = str_contains($username, '@')
+                ? $username
+                : "{$username}@" . $this->getDomainFromBaseDn();
+
+            if (!@ldap_bind($conn, $bindDn, $password)) {
+                return null;
+            }
+
+            // Fetch user attributes
+            $user = $this->findUser($conn, $username);
+            ldap_unbind($conn);
+
+            return $user;
+        } catch (\Exception $e) {
+            Log::error('LDAP authentication error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Searches Active Directory for users matching the given query.
+     * Used by Super Admin when adding AD users to the platform.
+     *
+     * @param string $query  Partial username or display name
+     * @return array  List of matching users
+     */
+    public function searchUsers(string $query): array
+    {
+        if (!$this->isConfigured()) return [];
+
+        try {
+            $protocol = $this->useSsl ? 'ldaps://' : 'ldap://';
+            $conn     = ldap_connect("{$protocol}{$this->host}", $this->port);
+
+            ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
+            ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
+
+            if ($this->useTls) ldap_start_tls($conn);
+
+            if (!@ldap_bind($conn, $this->bindUser, $this->bindPassword)) {
+                Log::error('LDAP service account bind failed');
+                return [];
+            }
+
+            $escaped = ldap_escape($query, '', LDAP_ESCAPE_FILTER);
+            $filter  = "(|(sAMAccountName=*{$escaped}*)(displayName=*{$escaped}*)(mail=*{$escaped}*))";
+            $attrs   = ['sAMAccountName', 'displayName', 'mail', 'department', 'title'];
+
+            $result = ldap_search($conn, $this->baseDn, $filter, $attrs, 0, 50);
+            $entries = ldap_get_entries($conn, $result);
+            ldap_unbind($conn);
+
+            $users = [];
+            for ($i = 0; $i < $entries['count']; $i++) {
+                $entry = $entries[$i];
+                $users[] = [
+                    'username'     => $entry['samaccountname'][0] ?? '',
+                    'display_name' => $entry['displayname'][0] ?? '',
+                    'email'        => $entry['mail'][0] ?? '',
+                    'department'   => $entry['department'][0] ?? '',
+                    'title'        => $entry['title'][0] ?? '',
+                ];
+            }
+
+            return $users;
+        } catch (\Exception $e) {
+            Log::error('LDAP search error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Fetches a single user's attributes from Active Directory.
+     *
+     * @param resource $conn      Active LDAP connection
+     * @param string   $username  SAM account name
+     * @return array|null
+     */
+    private function findUser($conn, string $username): ?array
+    {
+        $escaped = ldap_escape($username, '', LDAP_ESCAPE_FILTER);
+        $filter  = "(sAMAccountName={$escaped})";
+        $attrs   = ['sAMAccountName', 'displayName', 'mail', 'department'];
+
+        // Bind with service account for attribute lookup
+        if ($this->bindUser && $this->bindPassword) {
+            @ldap_bind($conn, $this->bindUser, $this->bindPassword);
+        }
+
+        $result  = ldap_search($conn, $this->baseDn, $filter, $attrs);
+        $entries = ldap_get_entries($conn, $result);
+
+        if ($entries['count'] === 0) return null;
+
+        $entry = $entries[0];
+        return [
+            'username'     => $entry['samaccountname'][0] ?? $username,
+            'display_name' => $entry['displayname'][0] ?? $username,
+            'email'        => $entry['mail'][0] ?? null,
+            'department'   => $entry['department'][0] ?? null,
+        ];
+    }
+
+    /** Derives domain suffix from base DN (e.g., dc=company,dc=local → company.local). */
+    private function getDomainFromBaseDn(): string
+    {
+        preg_match_all('/dc=([^,]+)/i', $this->baseDn, $matches);
+        return implode('.', $matches[1]);
+    }
+}
