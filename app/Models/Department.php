@@ -28,9 +28,10 @@ class Department extends Model
 
     public function standards()
     {
+        // Pivot has no created_at/updated_at (uses assigned_at / assigned_by),
+        // so withTimestamps() must not be used — it breaks attach()/sync().
         return $this->belongsToMany(Standard::class, 'department_standard')
-            ->withPivot(['assigned_at', 'assigned_by'])
-            ->withTimestamps();
+            ->withPivot(['assigned_at', 'assigned_by']);
     }
 
     public function documents()

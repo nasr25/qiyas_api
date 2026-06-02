@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api\Standards;
 
+use App\Exports\StandardsTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StandardResource;
+use App\Imports\StandardsImport;
 use App\Models\AssessmentCycle;
 use App\Models\Standard;
 use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Standard management within assessment cycles.
@@ -80,6 +84,55 @@ class StandardController extends Controller
             'success' => true,
             'data'    => new StandardResource($standard->load(['departments', 'evidenceRequirements'])),
         ], 201);
+    }
+
+    /**
+     * Downloads the .xlsx template for bulk standard import.
+     * GET /api/v1/cycles/{cycle}/standards/template
+     */
+    public function template(AssessmentCycle $cycle): BinaryFileResponse
+    {
+        return Excel::download(new StandardsTemplateExport(), 'standards-import-template.xlsx');
+    }
+
+    /**
+     * Bulk-imports standards into the cycle from an uploaded spreadsheet.
+     * POST /api/v1/cycles/{cycle}/standards/import
+     */
+    public function import(Request $request, AssessmentCycle $cycle): JsonResponse
+    {
+        if ($cycle->isReadOnly()) {
+            return response()->json(['success' => false, 'message' => 'Cannot import standards into a closed cycle.'], 422);
+        }
+
+        // Validate by extension — Excel files are often mis-detected by finfo.
+        $request->validate(['file' => ['required', 'file', 'max:5120']]);
+        $ext = strtolower($request->file('file')->getClientOriginalExtension());
+        if (!in_array($ext, ['xlsx', 'xls', 'csv'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unsupported file type. Allowed: xlsx, xls, csv.',
+                'errors'  => ['file' => ['Unsupported file type.']],
+            ], 422);
+        }
+
+        $import = new StandardsImport($cycle, $request->user()->id);
+        Excel::import($import, $request->file('file'));
+
+        AuditService::log(
+            'standard.imported',
+            "Imported standards into cycle #{$cycle->id}: {$import->created} created, {$import->updated} updated, " . count($import->errors) . ' error(s)',
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Import processed.',
+            'data'    => [
+                'created' => $import->created,
+                'updated' => $import->updated,
+                'errors'  => $import->errors,
+            ],
+        ]);
     }
 
     /**

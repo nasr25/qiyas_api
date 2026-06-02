@@ -35,9 +35,11 @@ class Standard extends Model
 
     public function departments()
     {
+        // Pivot tracks its own audit columns (assigned_at / assigned_by) and has
+        // no created_at/updated_at, so withTimestamps() must NOT be used here —
+        // it would try to write non-existent columns and break attach()/sync().
         return $this->belongsToMany(Department::class, 'department_standard')
-            ->withPivot(['assigned_at', 'assigned_by'])
-            ->withTimestamps();
+            ->withPivot(['assigned_at', 'assigned_by']);
     }
 
     public function evidenceRequirements()

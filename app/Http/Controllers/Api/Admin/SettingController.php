@@ -69,13 +69,28 @@ class SettingController extends Controller
      */
     public function uploadBranding(Request $request): JsonResponse
     {
+        // Validate by extension rather than the `image` rule: SVG files are
+        // frequently mis-detected by finfo (text/plain or text/xml), which makes
+        // the `image`/`mimes` rules reject otherwise-valid SVG logos.
         $request->validate([
             'type' => ['required', 'in:logo,favicon'],
-            'file' => ['required', 'image', 'max:2048'],
+            'file' => ['required', 'file', 'max:2048'],
         ]);
 
+        $file    = $request->file('file');
+        $ext     = strtolower($file->getClientOriginalExtension());
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
+
+        if (!in_array($ext, $allowed, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unsupported image type. Allowed: ' . implode(', ', $allowed) . '.',
+                'errors'  => ['file' => ['Unsupported image type.']],
+            ], 422);
+        }
+
         $type    = $request->type;
-        $path    = $request->file('file')->store("branding", 'public');
+        $path    = $file->store('branding', 'public');
         $url     = Storage::disk('public')->url($path);
 
         Setting::set('branding', $type, $path, 'string');

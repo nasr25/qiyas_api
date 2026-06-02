@@ -71,6 +71,9 @@ Route::prefix('v1')->group(function () {
             Route::prefix('{cycle}/standards')->group(function () {
                 Route::get('/',          [StandardController::class, 'index']);
                 Route::post('/',         [StandardController::class, 'store']);
+                // Static segments MUST precede the {standard} wildcard.
+                Route::get('template',   [StandardController::class, 'template']);
+                Route::post('import',    [StandardController::class, 'import']);
                 Route::get('{standard}', [StandardController::class, 'show']);
                 Route::put('{standard}', [StandardController::class, 'update']);
                 Route::delete('{standard}', [StandardController::class, 'destroy']);
