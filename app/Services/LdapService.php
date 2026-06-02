@@ -93,14 +93,30 @@ class LdapService
     {
         if (!$this->isConfigured()) return [];
 
+        // Active Directory rejects searches over an anonymous bind with an
+        // "Operations error". A directory search therefore requires a service
+        // (bind) account. If none is configured, skip cleanly instead of
+        // emitting warnings.
+        if (empty($this->bindUser) || empty($this->bindPassword)) {
+            Log::info('LDAP search skipped: no service (bind) account configured (LDAP_USERNAME/LDAP_PASSWORD).');
+            return [];
+        }
+
         try {
             $protocol = $this->useSsl ? 'ldaps://' : 'ldap://';
-            $conn     = ldap_connect("{$protocol}{$this->host}", $this->port);
+            $conn     = @ldap_connect("{$protocol}{$this->host}", $this->port);
+            if (!$conn) {
+                Log::error('LDAP connection failed for ' . $this->host);
+                return [];
+            }
 
             ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
             ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
 
-            if ($this->useTls) ldap_start_tls($conn);
+            if ($this->useTls && !@ldap_start_tls($conn)) {
+                Log::error('LDAP start_tls failed');
+                return [];
+            }
 
             if (!@ldap_bind($conn, $this->bindUser, $this->bindPassword)) {
                 Log::error('LDAP service account bind failed');
@@ -111,7 +127,12 @@ class LdapService
             $filter  = "(|(sAMAccountName=*{$escaped}*)(displayName=*{$escaped}*)(mail=*{$escaped}*))";
             $attrs   = ['sAMAccountName', 'displayName', 'mail', 'department', 'title'];
 
-            $result = ldap_search($conn, $this->baseDn, $filter, $attrs, 0, 50);
+            $result = @ldap_search($conn, $this->baseDn, $filter, $attrs, 0, 50);
+            if ($result === false) {
+                Log::error('LDAP search failed: ' . ldap_error($conn));
+                ldap_unbind($conn);
+                return [];
+            }
             $entries = ldap_get_entries($conn, $result);
             ldap_unbind($conn);
 
@@ -152,10 +173,14 @@ class LdapService
             @ldap_bind($conn, $this->bindUser, $this->bindPassword);
         }
 
-        $result  = ldap_search($conn, $this->baseDn, $filter, $attrs);
+        $result = @ldap_search($conn, $this->baseDn, $filter, $attrs);
+        if ($result === false) {
+            Log::error('LDAP user lookup failed: ' . ldap_error($conn));
+            return null;
+        }
         $entries = ldap_get_entries($conn, $result);
 
-        if ($entries['count'] === 0) return null;
+        if (!$entries || $entries['count'] === 0) return null;
 
         $entry = $entries[0];
         return [
