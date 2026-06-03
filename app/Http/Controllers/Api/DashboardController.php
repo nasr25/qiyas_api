@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AssessmentCycle;
 use App\Models\Department;
 use App\Models\Document;
+use App\Models\EvidenceRequirement;
 use App\Models\ExtensionRequest;
+use App\Models\Standard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -105,6 +107,7 @@ class DashboardController extends Controller
     {
         $cycle = $this->getActiveCycle($request);
         $stats = $this->getDocumentStats($cycle?->id, $user->department_id);
+        $catalog = $this->getCatalogCounts($cycle?->id, $user->department_id);
 
         return response()->json([
             'success' => true,
@@ -112,6 +115,8 @@ class DashboardController extends Controller
                 'cycle'           => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
                 'stats'           => $stats,
                 'completion_rate' => $this->calcCompletionRate($stats),
+                'standards_count'    => $catalog['standards'],
+                'requirements_count' => $catalog['requirements'],
                 'recent_documents' => Document::with(['requirement', 'submitter'])
                     ->where('department_id', $user->department_id)
                     ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
@@ -131,6 +136,7 @@ class DashboardController extends Controller
     {
         $cycle = $this->getActiveCycle($request);
         $stats = $this->getDocumentStats($cycle?->id, $user->department_id);
+        $catalog = $this->getCatalogCounts($cycle?->id, $user->department_id);
 
         return response()->json([
             'success' => true,
@@ -138,12 +144,35 @@ class DashboardController extends Controller
                 'cycle'           => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
                 'stats'           => $stats,
                 'completion_rate' => $this->calcCompletionRate($stats),
+                'standards_count'    => $catalog['standards'],
+                'requirements_count' => $catalog['requirements'],
                 'my_documents'    => Document::where('department_id', $user->department_id)
                     ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
                     ->where('submitted_by', $user->id)
                     ->count(),
             ],
         ]);
+    }
+
+    /**
+     * Counts standards assigned to a department in a cycle, and the evidence
+     * requirements under those standards. Used for the at-a-glance "assigned"
+     * cards on the employee/coordinator dashboards.
+     */
+    private function getCatalogCounts(?int $cycleId, ?int $departmentId): array
+    {
+        $standardIds = Standard::query()
+            ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
+            ->when($departmentId, fn ($q) => $q->whereHas(
+                'departments',
+                fn ($d) => $d->where('departments.id', $departmentId)
+            ))
+            ->pluck('id');
+
+        return [
+            'standards'    => $standardIds->count(),
+            'requirements' => EvidenceRequirement::whereIn('standard_id', $standardIds)->count(),
+        ];
     }
 
     /** Gets document status counts, optionally scoped to a cycle and department. */
