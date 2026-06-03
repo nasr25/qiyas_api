@@ -54,6 +54,10 @@ class Standard extends Model
 
     public function getNameAttribute(): string
     {
-        return app()->getLocale() === 'ar' ? $this->name_ar : $this->name_en;
+        // Fall back to the other language when the preferred one is empty
+        // (imported Qiyas standards are Arabic-only, so name_en is null).
+        return app()->getLocale() === 'ar'
+            ? ($this->name_ar ?: $this->name_en ?: '')
+            : ($this->name_en ?: $this->name_ar ?: '');
     }
 }
