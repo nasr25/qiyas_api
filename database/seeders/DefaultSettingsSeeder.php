@@ -21,7 +21,7 @@ class DefaultSettingsSeeder extends Seeder
             ['group' => 'branding', 'key' => 'favicon',        'value' => null,                 'type' => 'string'],
 
             // Upload
-            ['group' => 'upload', 'key' => 'allowed_types',   'value' => 'pdf,docx,xlsx,pptx,zip', 'type' => 'string'],
+            ['group' => 'upload', 'key' => 'allowed_types',   'value' => 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png', 'type' => 'string'],
             ['group' => 'upload', 'key' => 'max_size_mb',     'value' => '20',                      'type' => 'integer'],
 
             // Notifications

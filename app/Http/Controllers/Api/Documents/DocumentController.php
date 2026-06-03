@@ -110,13 +110,27 @@ class DocumentController extends Controller
             return response()->json(['success' => false, 'message' => 'This assessment cycle is closed.'], 422);
         }
 
-        $allowedTypes = Setting('upload.allowed_types', 'pdf,docx,xlsx,pptx,zip');
+        $allowedTypes = Setting('upload.allowed_types', 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png');
         $maxKb        = (int) Setting('upload.max_size_mb', 20) * 1024;
 
         $request->validate([
-            'file'          => ['required', 'file', "max:{$maxKb}", "mimes:{$allowedTypes}"],
+            'file'          => ['required', 'file', "max:{$maxKb}"],
             'change_reason' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // Validate by extension, not finfo MIME: the `mimes:` rule wrongly
+        // rejects valid Office files (docx/xlsx detected as application/zip)
+        // and is unreliable for some images.
+        $allowed = collect(explode(',', $allowedTypes))
+            ->map(fn ($t) => trim(strtolower($t)))->filter()->values()->all();
+        $ext = strtolower($request->file('file')->getClientOriginalExtension());
+        if (! in_array($ext, $allowed, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unsupported file type. Allowed: ' . implode(', ', $allowed) . '.',
+                'errors'  => ['file' => ['Unsupported file type.']],
+            ], 422);
+        }
 
         $version = $this->documentService->uploadVersion(
             $document,
