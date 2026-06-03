@@ -21,18 +21,22 @@ class Setting extends Model
      */
     public static function get(string $group, string $key, mixed $default = null): mixed
     {
-        $setting = Cache::remember("setting.{$group}.{$key}", 3600, function () use ($group, $key) {
-            return static::where('group', $group)->where('key', $key)->first();
+        // Cache a plain array (value + type), never the Eloquent model — caching
+        // the model can deserialize into a __PHP_Incomplete_Class and break with
+        // "access a property on an incomplete object".
+        $cached = Cache::remember("setting.{$group}.{$key}", 3600, function () use ($group, $key) {
+            $setting = static::where('group', $group)->where('key', $key)->first();
+            return $setting ? ['value' => $setting->value, 'type' => $setting->type] : null;
         });
 
-        if (!$setting) return $default;
+        if (!$cached) return $default;
 
-        return match ($setting->type) {
-            'boolean' => (bool) $setting->value,
-            'integer' => (int) $setting->value,
-            'float'   => (float) $setting->value,
-            'json'    => json_decode($setting->value, true),
-            default   => $setting->value,
+        return match ($cached['type']) {
+            'boolean' => (bool) $cached['value'],
+            'integer' => (int) $cached['value'],
+            'float'   => (float) $cached['value'],
+            'json'    => json_decode($cached['value'], true),
+            default   => $cached['value'],
         };
     }
 
