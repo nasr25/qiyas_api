@@ -39,7 +39,8 @@ class DocumentController extends Controller
             ->when($request->cycle_id, fn($q) => $q->where('cycle_id', $request->cycle_id))
             ->when($request->department_id, fn($q) => $q->where('department_id', $request->department_id))
             ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->when($request->requirement_id, fn($q) => $q->where('requirement_id', $request->requirement_id));
+            ->when($request->requirement_id, fn($q) => $q->where('requirement_id', $request->requirement_id))
+            ->when($request->standard_id, fn($q) => $q->whereHas('requirement', fn($r) => $r->where('standard_id', $request->standard_id)));
 
         $documents = $query->latest()->paginate($request->get('per_page', 15));
 
