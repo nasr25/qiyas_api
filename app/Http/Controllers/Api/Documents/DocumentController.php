@@ -110,12 +110,11 @@ class DocumentController extends Controller
             return response()->json(['success' => false, 'message' => 'This assessment cycle is closed.'], 422);
         }
 
-        $allowedTypes  = Setting('upload.allowed_types', 'pdf,docx,xlsx,pptx,zip');
-        $maxSizeMb     = Setting('upload.max_size_mb', 20);
-        $allowedMimes  = $this->getMimeTypes($allowedTypes);
+        $allowedTypes = Setting('upload.allowed_types', 'pdf,docx,xlsx,pptx,zip');
+        $maxKb        = (int) Setting('upload.max_size_mb', 20) * 1024;
 
         $request->validate([
-            'file'          => ['required', 'file', "max:{$maxSizeMb}048", "mimes:{$allowedTypes}"],
+            'file'          => ['required', 'file', "max:{$maxKb}", "mimes:{$allowedTypes}"],
             'change_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
