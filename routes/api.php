@@ -80,6 +80,9 @@ Route::prefix('v1')->group(function () {
             });
         });
 
+        // Single standard by id (not nested under a cycle)
+        Route::get('standards/{standard}', [StandardController::class, 'showById']);
+
         // Evidence Requirements (via standard)
         Route::prefix('standards/{standard}/requirements')->group(function () {
             Route::get('/',               [EvidenceRequirementController::class, 'index']);

@@ -148,6 +148,21 @@ class StandardController extends Controller
     }
 
     /**
+     * Shows a single standard by id (not nested under a cycle).
+     * GET /api/v1/standards/{standard}
+     */
+    public function showById(Standard $standard): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => new StandardResource(
+                $standard->loadCount('evidenceRequirements')
+                    ->load(['departments', 'evidenceRequirements'])
+            ),
+        ]);
+    }
+
+    /**
      * Updates a standard.
      * PUT /api/v1/cycles/{cycle}/standards/{standard}
      */
