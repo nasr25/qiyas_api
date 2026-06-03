@@ -46,7 +46,7 @@ class AuthController extends Controller
                 'token'      => $result['token'],
                 'token_type' => 'bearer',
                 'expires_in' => config('jwt.ttl') * 60,
-                'user'       => new UserResource($result['user']),
+                'user'       => new UserResource($result['user']->load('department')),
             ],
         ]);
     }
@@ -91,7 +91,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($request->user()),
+            'data'    => new UserResource($request->user()->load('department')),
         ]);
     }
 
