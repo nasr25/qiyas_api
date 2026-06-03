@@ -15,6 +15,9 @@ class Standard extends Model
     protected $fillable = [
         'cycle_id', 'standard_number', 'name_ar', 'name_en',
         'description', 'version', 'weight', 'due_date', 'is_active',
+        // DGA Qiyas catalog fields
+        'perspective', 'axis', 'application_requirements',
+        'evidence_documents', 'scope', 'related_references', 'status',
     ];
 
     protected function casts(): array
