@@ -59,11 +59,19 @@ class StandardController extends Controller
         $data = $request->validate([
             'standard_number'  => ['required', 'string', 'max:50'],
             'name_ar'          => ['required', 'string', 'max:500'],
-            'name_en'          => ['required', 'string', 'max:500'],
+            'name_en'          => ['nullable', 'string', 'max:500'],
             'description'      => ['nullable', 'string'],
             'version'          => ['nullable', 'string', 'max:20'],
             'weight'           => ['nullable', 'numeric', 'min:0', 'max:100'],
             'due_date'         => ['nullable', 'date'],
+            // DGA Qiyas catalog fields
+            'perspective'              => ['nullable', 'string', 'max:500'],
+            'axis'                     => ['nullable', 'string', 'max:500'],
+            'application_requirements' => ['nullable', 'string'],
+            'evidence_documents'       => ['nullable', 'string'],
+            'scope'                    => ['nullable', 'string'],
+            'related_references'       => ['nullable', 'string'],
+            'status'                   => ['nullable', 'string', 'max:100'],
             'department_ids'   => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);

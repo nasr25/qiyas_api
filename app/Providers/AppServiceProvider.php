@@ -3,12 +3,14 @@
 namespace App\Providers;
 
 use App\Models\Document;
+use App\Models\Setting;
 use App\Policies\DocumentPolicy;
 use App\Services\AuthService;
 use App\Services\CycleService;
 use App\Services\DocumentService;
 use App\Services\LdapService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -30,5 +32,33 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(function ($user, $ability) {
             if ($user->hasRole('super-admin')) return true;
         });
+
+        $this->applyMailSettings();
+    }
+
+    /**
+     * Override the SMTP mailer config from the DB Settings (the admin SMTP tab),
+     * so email works without editing .env. Only applies when a host is set.
+     */
+    private function applyMailSettings(): void
+    {
+        try {
+            if (! Schema::hasTable('settings')) return;
+
+            $host = Setting::get('smtp', 'host');
+            if (! $host) return;
+
+            config([
+                'mail.default'                  => 'smtp',
+                'mail.mailers.smtp.host'        => $host,
+                'mail.mailers.smtp.port'        => (int) Setting::get('smtp', 'port', 587),
+                'mail.mailers.smtp.username'    => Setting::get('smtp', 'username'),
+                'mail.mailers.smtp.password'    => Setting::get('smtp', 'password'),
+                'mail.mailers.smtp.encryption'  => Setting::get('smtp', 'encryption') ?: null,
+                'mail.from.address'             => Setting::get('smtp', 'from_address') ?: config('mail.from.address'),
+            ]);
+        } catch (\Throwable $e) {
+            // Never let mail config break booting (e.g. before migrations run).
+        }
     }
 }
