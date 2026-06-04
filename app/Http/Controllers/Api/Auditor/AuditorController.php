@@ -40,6 +40,14 @@ class AuditorController extends Controller
                 'last_page'    => $documents->lastPage(),
                 'total'        => $documents->total(),
             ],
+            'stats'   => [
+                'approved_today' => Document::where('status', 'approved')
+                    ->where('reviewed_by', $request->user()->id)
+                    ->whereDate('reviewed_at', today())->count(),
+                'rejected_today' => Document::where('status', 'rejected')
+                    ->where('reviewed_by', $request->user()->id)
+                    ->whereDate('reviewed_at', today())->count(),
+            ],
         ]);
     }
 
