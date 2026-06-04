@@ -15,6 +15,27 @@ use Illuminate\Support\Facades\Storage;
 class SettingController extends Controller
 {
     /**
+     * Public branding info (platform name + logo/favicon URLs) for the login
+     * page and app shell. No auth required.
+     * GET /api/v1/branding
+     */
+    public function branding(): JsonResponse
+    {
+        $logo    = Setting::get('branding', 'logo');
+        $favicon = Setting::get('branding', 'favicon');
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'platform_name'    => Setting::get('branding', 'platform_name'),
+                'platform_name_en' => Setting::get('branding', 'platform_name_en'),
+                'logo_url'         => $logo ? Storage::disk('public')->url($logo) : null,
+                'favicon_url'      => $favicon ? Storage::disk('public')->url($favicon) : null,
+            ],
+        ]);
+    }
+
+    /**
      * Returns all settings grouped by category.
      * GET /api/v1/admin/settings
      */

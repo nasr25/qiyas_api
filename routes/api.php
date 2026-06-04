@@ -31,6 +31,9 @@ Route::prefix('v1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
     });
 
+    // ── Public: Branding (logo / platform name for login + shell) ────────
+    Route::get('branding', [\App\Http\Controllers\Api\Admin\SettingController::class, 'branding']);
+
     // ── Protected Routes ─────────────────────────────────────────────────
     Route::middleware(['jwt.auth', 'set.locale'])->group(function () {
 

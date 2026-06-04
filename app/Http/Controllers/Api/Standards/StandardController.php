@@ -8,9 +8,12 @@ use App\Http\Resources\StandardResource;
 use App\Imports\StandardsImport;
 use App\Models\AssessmentCycle;
 use App\Models\Standard;
+use App\Models\User;
+use App\Notifications\StandardAssignedNotification;
 use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -84,6 +87,7 @@ class StandardController extends Controller
                 'assigned_by' => $request->user()->id,
             ]);
             $standard->departments()->attach($pivot);
+            $this->notifyAssignedDepartments($standard, $data['department_ids']);
         }
 
         AuditService::log('standard.created', "Standard '{$standard->standard_number}' created in cycle #{$cycle->id}", $standard);
@@ -171,6 +175,24 @@ class StandardController extends Controller
     }
 
     /**
+     * Notifies active users of the given departments that a standard was
+     * assigned to them (in-app + email).
+     */
+    private function notifyAssignedDepartments(Standard $standard, iterable $departmentIds): void
+    {
+        $departmentIds = collect($departmentIds)->filter()->all();
+        if (empty($departmentIds)) return;
+
+        $users = User::whereIn('department_id', $departmentIds)
+            ->where('is_active', true)
+            ->get();
+
+        if ($users->isNotEmpty()) {
+            Notification::send($users, new StandardAssignedNotification($standard));
+        }
+    }
+
+    /**
      * Updates a standard.
      * PUT /api/v1/cycles/{cycle}/standards/{standard}
      */
@@ -183,12 +205,19 @@ class StandardController extends Controller
         $data = $request->validate([
             'standard_number'  => ['sometimes', 'string', 'max:50'],
             'name_ar'          => ['sometimes', 'string', 'max:500'],
-            'name_en'          => ['sometimes', 'string', 'max:500'],
+            'name_en'          => ['nullable', 'string', 'max:500'],
             'description'      => ['nullable', 'string'],
             'version'          => ['nullable', 'string', 'max:20'],
             'weight'           => ['nullable', 'numeric', 'min:0', 'max:100'],
             'due_date'         => ['nullable', 'date'],
             'is_active'        => ['boolean'],
+            'perspective'              => ['nullable', 'string', 'max:500'],
+            'axis'                     => ['nullable', 'string', 'max:500'],
+            'application_requirements' => ['nullable', 'string'],
+            'evidence_documents'       => ['nullable', 'string'],
+            'scope'                    => ['nullable', 'string'],
+            'related_references'       => ['nullable', 'string'],
+            'status'                   => ['nullable', 'string', 'max:100'],
             'department_ids'   => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);
@@ -196,10 +225,17 @@ class StandardController extends Controller
         $standard->update($data);
 
         if (array_key_exists('department_ids', $data)) {
-            $pivot = collect($data['department_ids'] ?? [])->mapWithKeys(fn($id) => [
+            $newIds   = $data['department_ids'] ?? [];
+            $existing = $standard->departments()->pluck('departments.id')->all();
+            $added    = array_diff($newIds, $existing);
+
+            $pivot = collect($newIds)->mapWithKeys(fn($id) => [
                 $id => ['assigned_at' => now(), 'assigned_by' => $request->user()->id],
             ])->toArray();
             $standard->departments()->sync($pivot);
+
+            // Only notify departments newly added in this update.
+            $this->notifyAssignedDepartments($standard, $added);
         }
 
         AuditService::log('standard.updated', "Standard '{$standard->standard_number}' updated", $standard);
