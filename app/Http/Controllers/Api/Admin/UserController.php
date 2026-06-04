@@ -55,6 +55,10 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        // Empty department select ("None") arrives as "" — treat as null so a
+        // department-less user (e.g. an auditor) passes the nullable rule.
+        $request->merge(['department_id' => $request->input('department_id') ?: null]);
+
         $data = $request->validate([
             'name'          => ['required', 'string', 'max:255'],
             'username'      => ['required', 'string', 'max:100', 'unique:users'],
@@ -97,6 +101,8 @@ class UserController extends Controller
      */
     public function importLdap(Request $request): JsonResponse
     {
+        $request->merge(['department_id' => $request->input('department_id') ?: null]);
+
         $data = $request->validate([
             'username'      => ['required', 'string', 'unique:users,username'],
             'display_name'  => ['required', 'string'],
@@ -143,6 +149,8 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
+        $request->merge(['department_id' => $request->input('department_id') ?: null]);
+
         $data = $request->validate([
             'name'          => ['sometimes', 'string', 'max:255'],
             'email'         => ['nullable', 'email', Rule::unique('users')->ignore($user->id)],
