@@ -24,6 +24,9 @@ class SettingController extends Controller
         $logo    = Setting::get('branding', 'logo');
         $favicon = Setting::get('branding', 'favicon');
 
+        $allowed = collect(explode(',', (string) Setting::get('upload', 'allowed_types', 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png')))
+            ->map(fn ($t) => trim(strtolower($t)))->filter()->values()->all();
+
         return response()->json([
             'success' => true,
             'data'    => [
@@ -31,6 +34,10 @@ class SettingController extends Controller
                 'platform_name_en' => Setting::get('branding', 'platform_name_en'),
                 'logo_url'         => $logo ? Storage::disk('public')->url($logo) : null,
                 'favicon_url'      => $favicon ? Storage::disk('public')->url($favicon) : null,
+                'upload'           => [
+                    'allowed_types' => $allowed,
+                    'max_size_mb'   => (int) Setting::get('upload', 'max_size_mb', 20),
+                ],
             ],
         ]);
     }
