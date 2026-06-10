@@ -60,6 +60,19 @@ class RolesAndPermissionsSeeder extends Seeder
         $superAdmin = Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'api']);
         $superAdmin->givePermissionTo(Permission::all());
 
+        // ── Qiyas Administrator (functional owner: cycle + standards + progress)
+        $qiyasAdmin = Role::firstOrCreate(['name' => 'qiyas-admin', 'guard_name' => 'api']);
+        $qiyasAdmin->givePermissionTo([
+            'departments.view', 'departments.create', 'departments.edit',
+            'cycles.view', 'cycles.create', 'cycles.edit', 'cycles.activate', 'cycles.close', 'cycles.archive',
+            'standards.view', 'standards.create', 'standards.edit', 'standards.delete',
+            'requirements.view', 'requirements.create', 'requirements.edit', 'requirements.delete',
+            'documents.view',
+            'reports.view', 'reports.export',
+            'comments.view',
+            'audit-logs.view',
+        ]);
+
         // ── Auditor ──────────────────────────────────────────────────────────
         $auditor = Role::firstOrCreate(['name' => 'auditor', 'guard_name' => 'api']);
         $auditor->givePermissionTo([

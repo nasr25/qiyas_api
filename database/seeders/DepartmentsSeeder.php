@@ -11,11 +11,11 @@ use Illuminate\Database\Seeder;
 class DepartmentsSeeder extends Seeder
 {
     public const DEPARTMENTS = [
-        ['name_ar' => 'تقنية المعلومات',   'name_en' => 'Information Technology'],
-        ['name_ar' => 'الموارد البشرية',    'name_en' => 'Human Resources'],
-        ['name_ar' => 'الشؤون المالية',     'name_en' => 'Finance'],
-        ['name_ar' => 'الخدمات المشتركة',   'name_en' => 'Shared Services'],
-        ['name_ar' => 'التخطيط والتطوير',   'name_en' => 'Planning & Development'],
+        ['name_ar' => 'تقنية المعلومات', 'name_en' => 'Information Technology'],
+        ['name_ar' => 'الموارد البشرية',  'name_en' => 'Human Resources'],
+        ['name_ar' => 'الشؤون المالية',   'name_en' => 'Finance'],
+        ['name_ar' => 'الشؤون القانونية', 'name_en' => 'Legal'],
+        ['name_ar' => 'العمليات',         'name_en' => 'Operations'],
     ];
 
     public function run(): void

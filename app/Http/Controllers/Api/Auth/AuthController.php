@@ -65,8 +65,7 @@ class AuthController extends Controller
 
         $request->validate(['username' => ['required', 'string']]);
 
-        $allowed = ['superadmin', 'auditor', 'coordinator', 'employee', 'executive'];
-        if (! in_array($request->username, $allowed, true)) {
+        if (! in_array($request->username, \Database\Seeders\TestUsersSeeder::usernames(), true)) {
             return response()->json(['success' => false, 'message' => 'Not a test account.'], 422);
         }
 
@@ -90,6 +89,30 @@ class AuthController extends Controller
     public static function quickLoginEnabled(): bool
     {
         return app()->environment('local') || (bool) config('app.debug');
+    }
+
+    /**
+     * Dev-only list of test accounts (name/role/department) for the quick-login
+     * panel. Returns an empty list outside local/debug.
+     *
+     * GET /api/v1/auth/dev-users
+     */
+    public function devUsers(): JsonResponse
+    {
+        if (! self::quickLoginEnabled()) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $users = \App\Models\User::whereIn('username', \Database\Seeders\TestUsersSeeder::usernames())
+            ->with('department')->orderBy('id')->get()
+            ->map(fn ($u) => [
+                'username'   => $u->username,
+                'name'       => $u->name,
+                'role'       => $u->getRoleNames()->first(),
+                'department' => $u->department?->name_ar,
+            ]);
+
+        return response()->json(['success' => true, 'data' => $users]);
     }
 
     /**

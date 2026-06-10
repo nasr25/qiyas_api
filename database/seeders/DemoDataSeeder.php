@@ -36,8 +36,6 @@ class DemoDataSeeder extends Seeder
         DB::transaction(function () {
             $departments = Department::orderBy('id')->get();
 
-            $this->ensureVolumeUsers($departments);
-
             $admin = User::where('username', 'superadmin')->first();
             $cycle = $this->ensureActiveCycle($admin);
 
@@ -48,45 +46,6 @@ class DemoDataSeeder extends Seeder
             $this->ensureNotifications();
             $this->ensureAuditLogs();
         });
-    }
-
-    /** Creates extra users so totals reach 2 auditors, 5 coordinators, 20 employees, 2 executives. */
-    private function ensureVolumeUsers($departments): void
-    {
-        $make = function (string $username, string $name, string $role, ?int $deptId) {
-            $user = User::updateOrCreate(
-                ['username' => $username],
-                [
-                    'name'                 => $name,
-                    'email'                => $username . '@qiyas.local',
-                    'password'             => self::PASSWORD,
-                    'auth_type'            => 'local',
-                    'department_id'        => $deptId,
-                    'is_active'            => true,
-                    'must_change_password' => false,
-                    'locale'               => 'ar',
-                ],
-            );
-            $user->syncRoles([$role]);
-        };
-
-        // Auditors: named + 1 more (no department).
-        $make('auditor2', 'Auditor Two', 'auditor', null);
-
-        // Coordinators: named + 4 more (one per remaining department).
-        foreach ($departments as $i => $dept) {
-            if ($i === 0) continue; // dept 0 has the named coordinator
-            $make('coordinator' . ($i + 1), 'Coordinator ' . ($i + 1), 'coordinator', $dept->id);
-        }
-
-        // Employees: named + 19 more, spread across departments.
-        for ($n = 2; $n <= 20; $n++) {
-            $dept = $departments[($n - 2) % max($departments->count(), 1)];
-            $make('employee' . $n, 'Employee ' . $n, 'employee', $dept->id);
-        }
-
-        // Executives: named + 1 more (no department).
-        $make('executive2', 'Executive Two', 'executive', null);
     }
 
     private function ensureActiveCycle(?User $admin): AssessmentCycle
@@ -161,7 +120,7 @@ class DemoDataSeeder extends Seeder
     private function ensureDocuments(AssessmentCycle $cycle, $standards): void
     {
         $statuses = ['draft', 'under_review', 'approved', 'rejected', 'overdue'];
-        $auditor  = User::where('username', 'auditor')->first();
+        $auditor  = User::where('username', 'auditor_1')->first();
 
         $i = 0;
         foreach ($standards as $standard) {
@@ -243,7 +202,7 @@ class DemoDataSeeder extends Seeder
     {
         if (AuditLog::count() > 5) return;
 
-        $auditor = User::where('username', 'auditor')->first();
+        $auditor = User::where('username', 'auditor_1')->first();
         foreach (['document.approved', 'document.rejected', 'standard.created', 'user.created', 'settings.updated'] as $idx => $action) {
             AuditLog::create([
                 'user_id'     => $auditor?->id,

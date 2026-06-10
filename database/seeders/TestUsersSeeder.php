@@ -7,42 +7,70 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 
 /**
- * Seeds the 5 named test accounts (one per role), all with password
- * "Password123!" and no forced password change. Idempotent.
- *
- * superadmin / auditor / coordinator / employee / executive
+ * Seeds all named test accounts (password "Password123!", no forced change).
+ * Covers every role plus 2 employees per department. Idempotent.
  */
 class TestUsersSeeder extends Seeder
 {
     public const PASSWORD = 'Password123!';
 
-    public function run(): void
+    /** [username, name, role, department name_en (null = no department)] */
+    public static function accounts(): array
     {
-        $dept = Department::query()->orderBy('id')->first();
-
         $accounts = [
-            ['username' => 'superadmin',  'name' => 'Super Admin',       'role' => 'super-admin', 'department' => false],
-            ['username' => 'auditor',     'name' => 'Auditor User',      'role' => 'auditor',     'department' => false],
-            ['username' => 'coordinator', 'name' => 'Coordinator User',  'role' => 'coordinator', 'department' => true],
-            ['username' => 'employee',    'name' => 'Employee User',     'role' => 'employee',    'department' => true],
-            ['username' => 'executive',   'name' => 'Executive Viewer',  'role' => 'executive',   'department' => false],
+            ['superadmin',       'Super Admin',          'super-admin', null],
+            ['qiyas_admin',      'Qiyas Administrator',  'qiyas-admin', null],
+            ['auditor_1',        'Auditor One',          'auditor',     null],
+            ['auditor_2',        'Auditor Two',          'auditor',     null],
+            ['executive_viewer', 'Executive Viewer',     'executive',   null],
         ];
 
-        foreach ($accounts as $a) {
+        // 2 employees per department.
+        $depts = [
+            'Information Technology' => 'it',
+            'Human Resources'        => 'hr',
+            'Finance'                => 'finance',
+            'Legal'                  => 'legal',
+            'Operations'             => 'operations',
+        ];
+        foreach ($depts as $deptEn => $prefix) {
+            for ($i = 1; $i <= 2; $i++) {
+                $accounts[] = [
+                    "{$prefix}_employee_{$i}",
+                    ucfirst($prefix) . " Employee {$i}",
+                    'employee',
+                    $deptEn,
+                ];
+            }
+        }
+
+        return $accounts;
+    }
+
+    public static function usernames(): array
+    {
+        return array_map(fn ($a) => $a[0], self::accounts());
+    }
+
+    public function run(): void
+    {
+        $deptIds = Department::pluck('id', 'name_en');
+
+        foreach (self::accounts() as [$username, $name, $role, $deptEn]) {
             $user = User::updateOrCreate(
-                ['username' => $a['username']],
+                ['username' => $username],
                 [
-                    'name'                 => $a['name'],
-                    'email'                => $a['username'] . '@qiyas.local',
-                    'password'             => self::PASSWORD,   // hashed via model cast
+                    'name'                 => $name,
+                    'email'                => $username . '@qiyas.local',
+                    'password'             => self::PASSWORD,
                     'auth_type'            => 'local',
-                    'department_id'        => $a['department'] ? $dept?->id : null,
+                    'department_id'        => $deptEn ? ($deptIds[$deptEn] ?? null) : null,
                     'is_active'            => true,
                     'must_change_password' => false,
                     'locale'               => 'ar',
                 ],
             );
-            $user->syncRoles([$a['role']]);
+            $user->syncRoles([$role]);
         }
     }
 }

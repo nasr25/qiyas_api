@@ -28,6 +28,14 @@ class StandardController extends Controller
      */
     public function index(Request $request, AssessmentCycle $cycle): JsonResponse
     {
+        $user = $request->user();
+
+        // Employees (and coordinators) are hard-scoped to their own department,
+        // regardless of any client-supplied department_id.
+        $scopedDeptId = ($user->hasRole('employee') || $user->hasRole('coordinator'))
+            ? $user->department_id
+            : $request->department_id;
+
         $standards = $cycle->standards()
             ->with(['departments', 'evidenceRequirements'])
             ->withCount('evidenceRequirements')
@@ -35,7 +43,7 @@ class StandardController extends Controller
                 ->where('name_ar', 'like', "%{$request->search}%")
                 ->orWhere('name_en', 'like', "%{$request->search}%")
                 ->orWhere('standard_number', 'like', "%{$request->search}%"))
-            ->when($request->department_id, fn($q) => $q->whereHas('departments', fn($dq) => $dq->where('departments.id', $request->department_id)))
+            ->when($scopedDeptId, fn($q) => $q->whereHas('departments', fn($dq) => $dq->where('departments.id', $scopedDeptId)))
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
@@ -163,8 +171,16 @@ class StandardController extends Controller
      * Shows a single standard by id (not nested under a cycle).
      * GET /api/v1/standards/{standard}
      */
-    public function showById(Standard $standard): JsonResponse
+    public function showById(Request $request, Standard $standard): JsonResponse
     {
+        $user = $request->user();
+
+        // Employees/coordinators may only view a standard assigned to their dept.
+        if (($user->hasRole('employee') || $user->hasRole('coordinator'))
+            && ! $standard->departments()->where('departments.id', $user->department_id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
         return response()->json([
             'success' => true,
             'data'    => new StandardResource(

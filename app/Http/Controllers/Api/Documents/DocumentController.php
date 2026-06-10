@@ -88,8 +88,22 @@ class DocumentController extends Controller
      * Shows a document with full details.
      * GET /api/v1/documents/{document}
      */
+    /**
+     * Employees/coordinators may only act on documents of their own department.
+     */
+    private function ensureCanAccess(Document $document): void
+    {
+        $user = request()->user();
+        if (($user->hasRole('employee') || $user->hasRole('coordinator'))
+            && (int) $document->department_id !== (int) $user->department_id) {
+            abort(403, 'Forbidden.');
+        }
+    }
+
     public function show(Document $document): JsonResponse
     {
+        $this->ensureCanAccess($document);
+
         return response()->json([
             'success' => true,
             'data'    => new DocumentResource($document->load([
@@ -105,6 +119,8 @@ class DocumentController extends Controller
      */
     public function upload(Request $request, Document $document): JsonResponse
     {
+        $this->ensureCanAccess($document);
+
         // Check cycle is not closed
         if ($document->cycle->isReadOnly()) {
             return response()->json(['success' => false, 'message' => 'This assessment cycle is closed.'], 422);
@@ -156,6 +172,8 @@ class DocumentController extends Controller
      */
     public function submit(Request $request, Document $document): JsonResponse
     {
+        $this->ensureCanAccess($document);
+
         if ($document->cycle->isReadOnly()) {
             return response()->json(['success' => false, 'message' => 'This assessment cycle is closed.'], 422);
         }
@@ -179,6 +197,8 @@ class DocumentController extends Controller
      */
     public function download(Document $document, int $versionNumber)
     {
+        $this->ensureCanAccess($document);
+
         $version = $document->versions()->where('version_number', $versionNumber)->firstOrFail();
 
         AuditService::log('document.download', "Downloaded v{$versionNumber} of document #{$document->id}", $document);
