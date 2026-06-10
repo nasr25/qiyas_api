@@ -51,6 +51,23 @@ class AuthService
     }
 
     /**
+     * Issues a JWT for a username WITHOUT a password (dev quick-login only —
+     * the caller is responsible for gating this to local/debug environments).
+     *
+     * @return array{token: string, user: User}|null
+     */
+    public function issueTokenFor(string $username): ?array
+    {
+        $user = User::where('username', $username)->where('auth_type', 'local')->first();
+        if (!$user || !$user->is_active) return null;
+
+        $this->updateLastLogin($user);
+        AuditService::logLogin($user->id, $user->auth_type);
+
+        return ['token' => JWTAuth::fromUser($user), 'user' => $user];
+    }
+
+    /**
      * Logs out the current user and invalidates the JWT token.
      */
     public function logout(): void

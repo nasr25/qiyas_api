@@ -38,6 +38,7 @@ class SettingController extends Controller
                     'allowed_types' => $allowed,
                     'max_size_mb'   => (int) Setting::get('upload', 'max_size_mb', 20),
                 ],
+                'quick_login'      => \App\Http\Controllers\Api\Auth\AuthController::quickLoginEnabled(),
             ],
         ]);
     }

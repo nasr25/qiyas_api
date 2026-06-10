@@ -52,6 +52,47 @@ class AuthController extends Controller
     }
 
     /**
+     * Dev-only quick login: authenticates a fixed test account WITHOUT a
+     * password. Available only when APP_ENV=local or APP_DEBUG=true.
+     *
+     * POST /api/v1/auth/quick-login
+     */
+    public function quickLogin(Request $request): JsonResponse
+    {
+        if (! $this->quickLoginEnabled()) {
+            return response()->json(['success' => false, 'message' => 'Quick login is disabled.'], 403);
+        }
+
+        $request->validate(['username' => ['required', 'string']]);
+
+        $allowed = ['superadmin', 'auditor', 'coordinator', 'employee', 'executive'];
+        if (! in_array($request->username, $allowed, true)) {
+            return response()->json(['success' => false, 'message' => 'Not a test account.'], 422);
+        }
+
+        $result = $this->authService->issueTokenFor($request->username);
+        if (! $result) {
+            return response()->json(['success' => false, 'message' => 'Test user not found. Run: php artisan system:demo-data'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'token'      => $result['token'],
+                'token_type' => 'bearer',
+                'expires_in' => config('jwt.ttl') * 60,
+                'user'       => new UserResource($result['user']->load('department')),
+            ],
+        ]);
+    }
+
+    /** Quick login is allowed only in local/debug environments. */
+    public static function quickLoginEnabled(): bool
+    {
+        return app()->environment('local') || (bool) config('app.debug');
+    }
+
+    /**
      * Logs out the authenticated user and invalidates the JWT token.
      *
      * POST /api/v1/auth/logout

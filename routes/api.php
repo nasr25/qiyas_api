@@ -29,6 +29,8 @@ Route::prefix('v1')->group(function () {
     // ── Public: Authentication ───────────────────────────────────────────
     Route::prefix('auth')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
+        // Dev-only quick login (gated to local/debug inside the controller).
+        Route::post('quick-login', [AuthController::class, 'quickLogin']);
     });
 
     // ── Public: Branding (logo / platform name for login + shell) ────────

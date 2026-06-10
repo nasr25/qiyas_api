@@ -17,8 +17,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesAndPermissionsSeeder::class,
-            SuperAdminSeeder::class,
             DefaultSettingsSeeder::class,
+            // Departments + named test users + full demo dataset so the platform
+            // is immediately usable and testable after `migrate --seed`.
+            DemoDataSeeder::class,
+            // The 89 real DGA Qiyas standards (into a separate draft cycle).
             StandardsCatalogSeeder::class,
         ]);
     }
