@@ -62,7 +62,7 @@ class AuthService
         if (!$user || !$user->is_active) return null;
 
         $this->updateLastLogin($user);
-        AuditService::logLogin($user->id, $user->auth_type);
+        AuditService::logLogin($user->id, $user->auth_type, 'auth.quick_login');
 
         return ['token' => JWTAuth::fromUser($user), 'user' => $user];
     }

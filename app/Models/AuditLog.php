@@ -13,7 +13,7 @@ class AuditLog extends Model
     public $updatable = false;
 
     protected $fillable = [
-        'user_id', 'action', 'model_type', 'model_id',
+        'user_id', 'role', 'department_id', 'action', 'model_type', 'model_id',
         'old_values', 'new_values', 'description',
         'ip_address', 'user_agent', 'created_at',
     ];

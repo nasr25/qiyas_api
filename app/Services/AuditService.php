@@ -28,34 +28,32 @@ class AuditService
         ?array $oldValues = null,
         ?array $newValues = null
     ): void {
-        AuditLog::create([
-            'user_id'    => Auth::id(),
-            'action'     => $action,
-            'model_type' => $model ? get_class($model) : null,
-            'model_id'   => $model ? $model->getKey() : null,
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
+        AuditLog::create(array_merge([
+            'action'      => $action,
+            'model_type'  => $model ? get_class($model) : null,
+            'model_id'    => $model ? $model->getKey() : null,
+            'old_values'  => $oldValues,
+            'new_values'  => $newValues,
             'description' => $description,
             'ip_address'  => Request::ip(),
             'user_agent'  => Request::userAgent(),
-        ]);
+        ], self::actorMeta(Auth::user())));
     }
 
     /**
-     * Logs a login event.
+     * Logs a login event (also used for dev quick-login via $action).
      *
      * @param int    $userId   Authenticated user ID
      * @param string $authType Authentication type (ldap|local)
      */
-    public static function logLogin(int $userId, string $authType): void
+    public static function logLogin(int $userId, string $authType, string $action = 'auth.login'): void
     {
-        AuditLog::create([
-            'user_id'     => $userId,
-            'action'      => 'auth.login',
+        AuditLog::create(array_merge([
+            'action'      => $action,
             'description' => "User logged in via {$authType}",
             'ip_address'  => Request::ip(),
             'user_agent'  => Request::userAgent(),
-        ]);
+        ], self::actorMeta(\App\Models\User::find($userId))));
     }
 
     /**
@@ -63,12 +61,21 @@ class AuditService
      */
     public static function logLogout(int $userId): void
     {
-        AuditLog::create([
-            'user_id'     => $userId,
+        AuditLog::create(array_merge([
             'action'      => 'auth.logout',
             'description' => 'User logged out',
             'ip_address'  => Request::ip(),
             'user_agent'  => Request::userAgent(),
-        ]);
+        ], self::actorMeta(\App\Models\User::find($userId))));
+    }
+
+    /** Resolves user_id / role / department_id for the audit row. */
+    private static function actorMeta(?\App\Models\User $user): array
+    {
+        return [
+            'user_id'       => $user?->id,
+            'role'          => $user?->getRoleNames()->first(),
+            'department_id' => $user?->department_id,
+        ];
     }
 }

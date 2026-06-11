@@ -199,6 +199,12 @@ class StandardController extends Controller
         $departmentIds = collect($departmentIds)->filter()->all();
         if (empty($departmentIds)) return;
 
+        AuditService::log(
+            'standard.assigned',
+            "Standard '{$standard->standard_number}' assigned to department(s): " . implode(', ', $departmentIds),
+            $standard,
+        );
+
         $users = User::whereIn('department_id', $departmentIds)
             ->where('is_active', true)
             ->get();
