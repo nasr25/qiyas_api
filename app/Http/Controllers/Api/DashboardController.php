@@ -146,6 +146,16 @@ class DashboardController extends Controller
                 'completion_rate' => $this->calcCompletionRate($stats),
                 'standards_count'    => $catalog['standards'],
                 'requirements_count' => $catalog['requirements'],
+                'extension_requests' => ExtensionRequest::where('status', 'pending')
+                    ->whereHas('document', fn($q) => $q->where('department_id', $user->department_id)
+                        ->when($cycle, fn($d) => $d->where('cycle_id', $cycle->id)))
+                    ->count(),
+                'upcoming_deadlines' => \App\Models\Standard::query()
+                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
+                    ->whereHas('departments', fn($d) => $d->where('departments.id', $user->department_id))
+                    ->whereNotNull('due_date')
+                    ->whereBetween('due_date', [now()->toDateString(), now()->addDays(30)->toDateString()])
+                    ->count(),
                 'my_documents'    => Document::where('department_id', $user->department_id)
                     ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
                     ->where('submitted_by', $user->id)
