@@ -164,6 +164,9 @@ Route::prefix('v1')->group(function () {
             Route::get('settings/{group}',               [SettingController::class, 'group']);
             Route::post('settings',                      [SettingController::class, 'update']);
             Route::post('settings/branding/upload',      [SettingController::class, 'uploadBranding']);
+
+            // Email delivery log
+            Route::get('email-logs',                     [\App\Http\Controllers\Api\Admin\EmailLogController::class, 'index']);
         });
 
         // Audit Logs — super-admin (all), qiyas-admin, and auditor (review history).

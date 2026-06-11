@@ -2,14 +2,21 @@
 
 namespace App\Providers;
 
+use App\Listeners\LogEmailSending;
+use App\Listeners\LogEmailSent;
 use App\Models\Document;
+use App\Models\EmailLog;
 use App\Models\Setting;
 use App\Policies\DocumentPolicy;
 use App\Services\AuthService;
 use App\Services\CycleService;
 use App\Services\DocumentService;
 use App\Services\LdapService;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -34,6 +41,23 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->applyMailSettings();
+
+        // Track every outgoing email (sent / failed) for the Super Admin.
+        Event::listen(MessageSending::class, LogEmailSending::class);
+        Event::listen(MessageSent::class, LogEmailSent::class);
+
+        // A failed queued mail job marks the most recent pending email failed.
+        Queue::failing(function ($event) {
+            try {
+                $name = method_exists($event->job, 'resolveName') ? $event->job->resolveName() : '';
+                if (! str_contains($name, 'Notification') && ! str_contains($name, 'Mail')) return;
+
+                $log = EmailLog::where('status', 'pending')->latest()->first();
+                $log?->update(['status' => 'failed', 'error' => $event->exception?->getMessage()]);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        });
     }
 
     /**
