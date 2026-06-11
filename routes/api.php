@@ -60,9 +60,9 @@ Route::prefix('v1')->group(function () {
             Route::delete('{id}',         [NotificationController::class, 'destroy']);
         });
 
-        // Departments (read open to authenticated; writes permission-gated)
-        Route::get('departments',             [DepartmentController::class, 'index']);
-        Route::get('departments/{department}', [DepartmentController::class, 'show']);
+        // Departments (read + write both permission-gated; employees lack departments.view)
+        Route::get('departments',             [DepartmentController::class, 'index'])->middleware('permission:departments.view');
+        Route::get('departments/{department}', [DepartmentController::class, 'show'])->middleware('permission:departments.view');
         Route::post('departments',            [DepartmentController::class, 'store'])->middleware('permission:departments.create');
         Route::put('departments/{department}', [DepartmentController::class, 'update'])->middleware('permission:departments.edit');
         Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->middleware('permission:departments.delete');
