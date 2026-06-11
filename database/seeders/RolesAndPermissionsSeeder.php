@@ -84,6 +84,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'extensions.view', 'extensions.approve', 'extensions.reject',
             'reports.view', 'reports.export',
             'comments.view', 'comments.create',
+            'audit-logs.view',
         ]);
 
         // ── Coordinator ──────────────────────────────────────────────────────

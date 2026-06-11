@@ -164,9 +164,9 @@ Route::prefix('v1')->group(function () {
             Route::get('settings/{group}',               [SettingController::class, 'group']);
             Route::post('settings',                      [SettingController::class, 'update']);
             Route::post('settings/branding/upload',      [SettingController::class, 'uploadBranding']);
-
-            // Audit Logs
-            Route::get('audit-logs',                     [AuditLogController::class, 'index']);
         });
+
+        // Audit Logs — super-admin (all), qiyas-admin, and auditor (review history).
+        Route::get('admin/audit-logs', [AuditLogController::class, 'index'])->middleware('permission:audit-logs.view');
     });
 });
