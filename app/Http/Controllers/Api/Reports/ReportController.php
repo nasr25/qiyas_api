@@ -121,38 +121,30 @@ class ReportController extends Controller
     public function byStatus(Request $request): JsonResponse
     {
         $request->validate([
-            'cycle_id'      => ['required', 'exists:assessment_cycles,id'],
-            'status'        => ['required', 'in:draft,under_review,approved,rejected,overdue'],
+            'cycle_id'      => ['nullable', 'exists:assessment_cycles,id'],
             'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
-        $documents = Document::with(['requirement.standard', 'department', 'submitter', 'reviewer'])
-            ->where('cycle_id', $request->cycle_id)
-            ->where('status', $request->status)
+        // Distribution of documents across all statuses (counts + percentages).
+        $counts = Document::query()
+            ->when($request->cycle_id, fn($q) => $q->where('cycle_id', $request->cycle_id))
             ->when($request->department_id, fn($q) => $q->where('department_id', $request->department_id))
-            ->latest()
-            ->paginate($request->get('per_page', 50));
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $total = (int) $counts->sum();
+
+        $statuses = collect(['draft', 'under_review', 'approved', 'rejected', 'overdue'])
+            ->map(fn($s) => [
+                'status'     => $s,
+                'count'      => (int) ($counts[$s] ?? 0),
+                'percentage' => $total > 0 ? round((($counts[$s] ?? 0) / $total) * 100, 1) : 0,
+            ])->values();
 
         return response()->json([
             'success' => true,
-            'data'    => $documents->map(fn($d) => [
-                'id'              => $d->id,
-                'title'           => $d->title,
-                'status'          => $d->status,
-                'department'      => $d->department?->name_ar,
-                'standard'        => $d->requirement?->standard?->name_ar,
-                'requirement'     => $d->requirement?->title_ar,
-                'submitter'       => $d->submitter?->name,
-                'reviewer'        => $d->reviewer?->name,
-                'submitted_at'    => $d->submitted_at?->toDateString(),
-                'reviewed_at'     => $d->reviewed_at?->toDateString(),
-                'rejection_reason' => $d->rejection_reason,
-            ]),
-            'meta'    => [
-                'current_page' => $documents->currentPage(),
-                'last_page'    => $documents->lastPage(),
-                'total'        => $documents->total(),
-            ],
+            'data'    => ['statuses' => $statuses, 'total' => $total],
         ]);
     }
 
