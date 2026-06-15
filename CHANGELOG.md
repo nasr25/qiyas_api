@@ -5,6 +5,10 @@ Format: **Added / Changed / Fixed / Security / Deps**.
 
 ## [Unreleased]
 
+### Changed
+- Housekeeping: remove editor/tooling directories from `.gitignore` and tidy
+  project metadata.
+
 ### Added
 - **Email delivery log** for Super Admin: `email_logs` table, `MessageSending`/
   `MessageSent` listeners (with `Queue::failing` to mark failures), and
