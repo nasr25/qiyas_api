@@ -20,11 +20,11 @@ class JwtMiddleware
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['success' => false, 'message' => 'User not found.'], 401);
             }
 
-            if (!$user->is_active) {
+            if (! $user->is_active) {
                 return response()->json(['success' => false, 'message' => 'Account is deactivated.'], 401);
             }
         } catch (TokenExpiredException) {

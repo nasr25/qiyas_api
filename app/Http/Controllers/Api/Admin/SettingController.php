@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\AuditService;
@@ -21,7 +22,7 @@ class SettingController extends Controller
      */
     public function branding(): JsonResponse
     {
-        $logo    = Setting::get('branding', 'logo');
+        $logo = Setting::get('branding', 'logo');
         $favicon = Setting::get('branding', 'favicon');
 
         $allowed = collect(explode(',', (string) Setting::get('upload', 'allowed_types', 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png')))
@@ -29,16 +30,16 @@ class SettingController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'platform_name'    => Setting::get('branding', 'platform_name'),
+            'data' => [
+                'platform_name' => Setting::get('branding', 'platform_name'),
                 'platform_name_en' => Setting::get('branding', 'platform_name_en'),
-                'logo_url'         => $logo ? Storage::disk('public')->url($logo) : null,
-                'favicon_url'      => $favicon ? Storage::disk('public')->url($favicon) : null,
-                'upload'           => [
+                'logo_url' => $logo ? Storage::disk('public')->url($logo) : null,
+                'favicon_url' => $favicon ? Storage::disk('public')->url($favicon) : null,
+                'upload' => [
                     'allowed_types' => $allowed,
-                    'max_size_mb'   => (int) Setting::get('upload', 'max_size_mb', 20),
+                    'max_size_mb' => (int) Setting::get('upload', 'max_size_mb', 20),
                 ],
-                'quick_login'      => \App\Http\Controllers\Api\Auth\AuthController::quickLoginEnabled(),
+                'quick_login' => AuthController::quickLoginEnabled(),
             ],
         ]);
     }
@@ -49,8 +50,7 @@ class SettingController extends Controller
      */
     public function index(): JsonResponse
     {
-        $settings = Setting::all()->groupBy('group')->map(fn($group) =>
-            $group->mapWithKeys(fn($s) => [$s->key => $this->castValue($s)])
+        $settings = Setting::all()->groupBy('group')->map(fn ($group) => $group->mapWithKeys(fn ($s) => [$s->key => $this->castValue($s)])
         );
 
         return response()->json(['success' => true, 'data' => $settings]);
@@ -64,7 +64,7 @@ class SettingController extends Controller
     {
         $settings = Setting::where('group', $group)
             ->get()
-            ->mapWithKeys(fn($s) => [$s->key => $this->castValue($s)]);
+            ->mapWithKeys(fn ($s) => [$s->key => $this->castValue($s)]);
 
         return response()->json(['success' => true, 'data' => $settings]);
     }
@@ -76,11 +76,11 @@ class SettingController extends Controller
     public function update(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'settings'         => ['required', 'array'],
+            'settings' => ['required', 'array'],
             'settings.*.group' => ['required', 'string', 'max:100'],
-            'settings.*.key'   => ['required', 'string', 'max:100'],
+            'settings.*.key' => ['required', 'string', 'max:100'],
             'settings.*.value' => ['nullable'],
-            'settings.*.type'  => ['nullable', 'in:string,boolean,integer,float,json'],
+            'settings.*.type' => ['nullable', 'in:string,boolean,integer,float,json'],
         ]);
 
         foreach ($data['settings'] as $setting) {
@@ -106,28 +106,28 @@ class SettingController extends Controller
             'file' => ['required', 'file', 'max:2048'],
         ]);
 
-        $file    = $request->file('file');
-        $ext     = strtolower($file->getClientOriginalExtension());
+        $file = $request->file('file');
+        $ext = strtolower($file->getClientOriginalExtension());
         $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
 
-        if (!in_array($ext, $allowed, true)) {
+        if (! in_array($ext, $allowed, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unsupported image type. Allowed: ' . implode(', ', $allowed) . '.',
-                'errors'  => ['file' => ['Unsupported image type.']],
+                'message' => 'Unsupported image type. Allowed: '.implode(', ', $allowed).'.',
+                'errors' => ['file' => ['Unsupported image type.']],
             ], 422);
         }
 
-        $type    = $request->type;
-        $path    = $file->store('branding', 'public');
-        $url     = Storage::disk('public')->url($path);
+        $type = $request->type;
+        $path = $file->store('branding', 'public');
+        $url = Storage::disk('public')->url($path);
 
         Setting::set('branding', $type, $path, 'string');
         AuditService::log('settings.branding', "Branding {$type} updated");
 
         return response()->json([
             'success' => true,
-            'data'    => ['url' => $url, 'path' => $path],
+            'data' => ['url' => $url, 'path' => $path],
         ]);
     }
 
@@ -137,9 +137,9 @@ class SettingController extends Controller
         return match ($setting->type) {
             'boolean' => (bool) $setting->value,
             'integer' => (int) $setting->value,
-            'float'   => (float) $setting->value,
-            'json'    => json_decode($setting->value, true),
-            default   => $setting->value,
+            'float' => (float) $setting->value,
+            'json' => json_decode($setting->value, true),
+            default => $setting->value,
         };
     }
 }

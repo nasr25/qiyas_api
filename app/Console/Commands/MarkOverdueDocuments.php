@@ -4,9 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Document;
 use App\Models\Standard;
-use App\Notifications\DocumentOverdueNotification;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Marks documents as overdue if their standard's due date has passed
@@ -14,7 +12,8 @@ use Illuminate\Support\Facades\DB;
  */
 class MarkOverdueDocuments extends Command
 {
-    protected $signature   = 'qiyas:mark-overdue';
+    protected $signature = 'qiyas:mark-overdue';
+
     protected $description = 'Mark documents as overdue based on standard due dates';
 
     public function handle(): int
@@ -37,6 +36,7 @@ class MarkOverdueDocuments extends Command
             });
 
         $this->info("Marked {$count} documents as overdue.");
+
         return self::SUCCESS;
     }
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\EmailLogController;
 use App\Http\Controllers\Api\Admin\EmailTemplateController;
+use App\Http\Controllers\Api\Admin\HealthController;
 use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Auditor\AuditorController;
@@ -48,9 +49,11 @@ Route::prefix('v1')->group(function () {
 
     // ── Public: Authentication ───────────────────────────────────────────
     Route::prefix('auth')->group(function () {
-        Route::post('login', [AuthController::class, 'login']);
-        // Dev-only quick login (gated to local/debug inside the controller).
-        Route::post('quick-login', [AuthController::class, 'quickLogin']);
+        Route::middleware('throttle:login')->group(function () {
+            Route::post('login', [AuthController::class, 'login']);
+            // Dev-only quick login (gated to local/debug inside the controller).
+            Route::post('quick-login', [AuthController::class, 'quickLogin']);
+        });
         Route::get('dev-users', [AuthController::class, 'devUsers']);
     });
 
@@ -271,6 +274,9 @@ Route::prefix('v1')->group(function () {
 
         // Admin Routes
         Route::prefix('admin')->middleware('role:super-admin')->group(function () {
+            // Operational readiness (protected — see docs/qiyas-operational-runbook.md)
+            Route::get('health', [HealthController::class, 'readiness']);
+
             // Users
             Route::get('users', [UserController::class, 'index']);
             Route::post('users', [UserController::class, 'store']);

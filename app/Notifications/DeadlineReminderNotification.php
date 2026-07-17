@@ -15,10 +15,13 @@ class DeadlineReminderNotification extends Notification implements ShouldQueue
 
     public function __construct(
         private readonly Standard $standard,
-        private readonly Carbon   $dueDate
+        private readonly Carbon $dueDate
     ) {}
 
-    public function via(object $notifiable): array { return ['database', 'mail']; }
+    public function via(object $notifiable): array
+    {
+        return ['database', 'mail'];
+    }
 
     public function toMail(object $notifiable): MailMessage
     {
@@ -31,11 +34,11 @@ class DeadlineReminderNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'        => 'deadline_reminder',
+            'type' => 'deadline_reminder',
             'standard_id' => $this->standard->id,
-            'due_date'    => $this->dueDate->toDateString(),
-            'message_ar'  => "تذكير: موعد انتهاء المعيار {$this->standard->name_ar} يقترب",
-            'message_en'  => "Reminder: Standard '{$this->standard->name_en}' deadline approaching",
+            'due_date' => $this->dueDate->toDateString(),
+            'message_ar' => "تذكير: موعد انتهاء المعيار {$this->standard->name_ar} يقترب",
+            'message_en' => "Reminder: Standard '{$this->standard->name_en}' deadline approaching",
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\RequirementAssignment;
+use App\Models\Setting;
 use App\Models\SlaInstance;
 use App\Models\User;
 use App\Models\WorkflowEvent;
@@ -30,6 +31,13 @@ class ProcessSlaCommand extends Command
 
     public function handle(SlaService $sla, NotificationService $notifications): int
     {
+        // Written unconditionally on every run, independent of whether any
+        // warning/breach/overdue condition was actually found this cycle —
+        // this is the scheduler heartbeat the readiness health check reads
+        // (see HealthController::checkScheduler()), so "nothing changed" is
+        // never mistaken for "the scheduler stopped running".
+        Setting::set('operations', 'scheduler_last_heartbeat', now()->toIso8601String());
+
         $warnings = 0;
         $breaches = 0;
         $overdue = 0;

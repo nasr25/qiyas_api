@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ExtensionRequestResource;
 use App\Models\Document;
 use App\Models\ExtensionRequest;
+use App\Models\User;
+use App\Notifications\ExtensionRequestedNotification;
 use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +30,7 @@ class ExtensionRequestController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => ExtensionRequestResource::collection($requests),
+            'data' => ExtensionRequestResource::collection($requests),
         ]);
     }
 
@@ -48,28 +50,28 @@ class ExtensionRequestController extends Controller
 
         $data = $request->validate([
             'requested_date' => ['required', 'date', 'after:today'],
-            'reason'         => ['required', 'string', 'min:20', 'max:2000'],
+            'reason' => ['required', 'string', 'min:20', 'max:2000'],
         ]);
 
         $extensionRequest = ExtensionRequest::create([
-            'document_id'    => $document->id,
-            'requested_by'   => $request->user()->id,
+            'document_id' => $document->id,
+            'requested_by' => $request->user()->id,
             'requested_date' => $data['requested_date'],
-            'reason'         => $data['reason'],
-            'status'         => 'pending',
+            'reason' => $data['reason'],
+            'status' => 'pending',
         ]);
 
         AuditService::log('extension.requested', "Extension requested for document #{$document->id}", $document);
 
         // Notify auditors
-        $auditors = \App\Models\User::role('auditor')->where('is_active', true)->get();
+        $auditors = User::role('auditor')->where('is_active', true)->get();
         foreach ($auditors as $auditor) {
-            $auditor->notify(new \App\Notifications\ExtensionRequestedNotification($extensionRequest));
+            $auditor->notify(new ExtensionRequestedNotification($extensionRequest));
         }
 
         return response()->json([
             'success' => true,
-            'data'    => new ExtensionRequestResource($extensionRequest),
+            'data' => new ExtensionRequestResource($extensionRequest),
             'message' => 'Extension request submitted.',
         ], 201);
     }

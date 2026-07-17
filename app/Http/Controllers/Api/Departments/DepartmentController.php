@@ -22,20 +22,20 @@ class DepartmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $departments = Department::withCount('users')
-            ->when($request->search, fn($q) => $q
+            ->when($request->search, fn ($q) => $q
                 ->where('name_ar', 'like', "%{$request->search}%")
                 ->orWhere('name_en', 'like', "%{$request->search}%"))
-            ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->when(isset($request->is_active), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->latest()
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => DepartmentResource::collection($departments),
-            'meta'    => [
+            'data' => DepartmentResource::collection($departments),
+            'meta' => [
                 'current_page' => $departments->currentPage(),
-                'last_page'    => $departments->lastPage(),
-                'total'        => $departments->total(),
+                'last_page' => $departments->lastPage(),
+                'total' => $departments->total(),
             ],
         ]);
     }
@@ -47,10 +47,10 @@ class DepartmentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name_ar'     => ['required', 'string', 'max:255', 'unique:departments'],
-            'name_en'     => ['required', 'string', 'max:255', 'unique:departments'],
+            'name_ar' => ['required', 'string', 'max:255', 'unique:departments'],
+            'name_en' => ['required', 'string', 'max:255', 'unique:departments'],
             'description' => ['nullable', 'string'],
-            'is_active'   => ['boolean'],
+            'is_active' => ['boolean'],
         ]);
 
         $department = Department::create($data);
@@ -58,7 +58,7 @@ class DepartmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DepartmentResource($department),
+            'data' => new DepartmentResource($department),
         ], 201);
     }
 
@@ -70,7 +70,7 @@ class DepartmentController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new DepartmentResource($department->loadCount('users')),
+            'data' => new DepartmentResource($department->loadCount('users')),
         ]);
     }
 
@@ -81,10 +81,10 @@ class DepartmentController extends Controller
     public function update(Request $request, Department $department): JsonResponse
     {
         $data = $request->validate([
-            'name_ar'     => ['sometimes', 'string', 'max:255', Rule::unique('departments')->ignore($department->id)],
-            'name_en'     => ['sometimes', 'string', 'max:255', Rule::unique('departments')->ignore($department->id)],
+            'name_ar' => ['sometimes', 'string', 'max:255', Rule::unique('departments')->ignore($department->id)],
+            'name_en' => ['sometimes', 'string', 'max:255', Rule::unique('departments')->ignore($department->id)],
             'description' => ['nullable', 'string'],
-            'is_active'   => ['boolean'],
+            'is_active' => ['boolean'],
         ]);
 
         $old = $department->only(['name_ar', 'name_en', 'is_active']);
@@ -94,7 +94,7 @@ class DepartmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DepartmentResource($department->fresh()),
+            'data' => new DepartmentResource($department->fresh()),
         ]);
     }
 

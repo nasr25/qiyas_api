@@ -19,9 +19,11 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  */
 class StandardsImport implements ToCollection, WithHeadingRow
 {
-    public int   $created = 0;
-    public int   $updated = 0;
-    public array $errors  = [];   // [{ row, message }]
+    public int $created = 0;
+
+    public int $updated = 0;
+
+    public array $errors = [];   // [{ row, message }]
 
     private Collection $departmentLookup;
 
@@ -33,7 +35,7 @@ class StandardsImport implements ToCollection, WithHeadingRow
         $this->departmentLookup = Department::all()->flatMap(fn ($d) => [
             mb_strtolower(trim($d->name_ar)) => $d->id,
             mb_strtolower(trim($d->name_en)) => $d->id,
-            (string) $d->id                  => $d->id,
+            (string) $d->id => $d->id,
         ]);
     }
 
@@ -43,12 +45,12 @@ class StandardsImport implements ToCollection, WithHeadingRow
             $rowNumber = $i + 2; // +1 for heading row, +1 for 1-based display
             $data = [
                 'standard_number' => $this->str($row['standard_number'] ?? null),
-                'name_ar'         => $this->str($row['name_ar'] ?? null),
-                'name_en'         => $this->str($row['name_en'] ?? null),
-                'description'     => $this->str($row['description'] ?? null) ?: null,
-                'version'         => $this->str($row['version'] ?? null) ?: null,
-                'weight'          => $this->num($row['weight'] ?? null),
-                'due_date'        => $this->date($row['due_date'] ?? null),
+                'name_ar' => $this->str($row['name_ar'] ?? null),
+                'name_en' => $this->str($row['name_en'] ?? null),
+                'description' => $this->str($row['description'] ?? null) ?: null,
+                'version' => $this->str($row['version'] ?? null) ?: null,
+                'weight' => $this->num($row['weight'] ?? null),
+                'due_date' => $this->date($row['due_date'] ?? null),
             ];
 
             // Skip fully blank rows silently.
@@ -58,15 +60,16 @@ class StandardsImport implements ToCollection, WithHeadingRow
 
             $validator = Validator::make($data, [
                 'standard_number' => ['required', 'string', 'max:50'],
-                'name_ar'         => ['required', 'string', 'max:500'],
-                'name_en'         => ['required', 'string', 'max:500'],
-                'version'         => ['nullable', 'string', 'max:20'],
-                'weight'          => ['nullable', 'numeric', 'min:0', 'max:100'],
-                'due_date'        => ['nullable', 'date'],
+                'name_ar' => ['required', 'string', 'max:500'],
+                'name_en' => ['required', 'string', 'max:500'],
+                'version' => ['nullable', 'string', 'max:20'],
+                'weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
+                'due_date' => ['nullable', 'date'],
             ]);
 
             if ($validator->fails()) {
                 $this->errors[] = ['row' => $rowNumber, 'message' => implode(' ', $validator->errors()->all())];
+
                 continue;
             }
 
@@ -87,13 +90,17 @@ class StandardsImport implements ToCollection, WithHeadingRow
     private function syncDepartments(Standard $standard, $cell, int $rowNumber): void
     {
         $cell = $this->str($cell);
-        if ($cell === '') return;
+        if ($cell === '') {
+            return;
+        }
 
-        $ids     = [];
+        $ids = [];
         $unknown = [];
         foreach (preg_split('/[,;،]/u', $cell) as $token) {
             $key = mb_strtolower(trim($token));
-            if ($key === '') continue;
+            if ($key === '') {
+                continue;
+            }
             if ($this->departmentLookup->has($key)) {
                 $ids[] = $this->departmentLookup->get($key);
             } else {
@@ -102,7 +109,7 @@ class StandardsImport implements ToCollection, WithHeadingRow
         }
 
         if ($unknown) {
-            $this->errors[] = ['row' => $rowNumber, 'message' => 'Unknown department(s): ' . implode(', ', $unknown)];
+            $this->errors[] = ['row' => $rowNumber, 'message' => 'Unknown department(s): '.implode(', ', $unknown)];
         }
 
         if ($ids) {
@@ -121,17 +128,21 @@ class StandardsImport implements ToCollection, WithHeadingRow
     private function num($v): ?float
     {
         $v = $this->str($v);
+
         return $v === '' ? null : (is_numeric($v) ? (float) $v : null);
     }
 
     /** Accepts Y-m-d strings or Excel serial date numbers. */
     private function date($v): ?string
     {
-        if ($v === null || $this->str($v) === '') return null;
+        if ($v === null || $this->str($v) === '') {
+            return null;
+        }
         try {
             if (is_numeric($v)) {
                 return Carbon::instance(ExcelDate::excelToDateTimeObject((float) $v))->toDateString();
             }
+
             return Carbon::parse($this->str($v))->toDateString();
         } catch (\Throwable) {
             return null;

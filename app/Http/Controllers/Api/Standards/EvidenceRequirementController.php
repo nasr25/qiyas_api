@@ -25,7 +25,7 @@ class EvidenceRequirementController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => EvidenceRequirementResource::collection($requirements),
+            'data' => EvidenceRequirementResource::collection($requirements),
         ]);
     }
 
@@ -36,11 +36,11 @@ class EvidenceRequirementController extends Controller
     public function store(Request $request, Standard $standard): JsonResponse
     {
         $data = $request->validate([
-            'title_ar'     => ['required', 'string', 'max:500'],
-            'title_en'     => ['required', 'string', 'max:500'],
-            'description'  => ['nullable', 'string'],
+            'title_ar' => ['required', 'string', 'max:500'],
+            'title_en' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string'],
             'is_mandatory' => ['boolean'],
-            'sort_order'   => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $data['sort_order'] = $data['sort_order'] ?? ($standard->evidenceRequirements()->max('sort_order') + 1);
@@ -50,7 +50,7 @@ class EvidenceRequirementController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new EvidenceRequirementResource($requirement),
+            'data' => new EvidenceRequirementResource($requirement),
         ], 201);
     }
 
@@ -62,7 +62,7 @@ class EvidenceRequirementController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new EvidenceRequirementResource($requirement),
+            'data' => new EvidenceRequirementResource($requirement),
         ]);
     }
 
@@ -73,18 +73,18 @@ class EvidenceRequirementController extends Controller
     public function update(Request $request, Standard $standard, EvidenceRequirement $requirement): JsonResponse
     {
         $data = $request->validate([
-            'title_ar'     => ['sometimes', 'string', 'max:500'],
-            'title_en'     => ['sometimes', 'string', 'max:500'],
-            'description'  => ['nullable', 'string'],
+            'title_ar' => ['sometimes', 'string', 'max:500'],
+            'title_en' => ['sometimes', 'string', 'max:500'],
+            'description' => ['nullable', 'string'],
             'is_mandatory' => ['boolean'],
-            'sort_order'   => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $requirement->update($data);
 
         return response()->json([
             'success' => true,
-            'data'    => new EvidenceRequirementResource($requirement->fresh()),
+            'data' => new EvidenceRequirementResource($requirement->fresh()),
         ]);
     }
 

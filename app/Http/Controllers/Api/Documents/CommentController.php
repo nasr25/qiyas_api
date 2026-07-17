@@ -29,7 +29,7 @@ class CommentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $comments->map(fn($c) => $this->formatComment($c)),
+            'data' => $comments->map(fn ($c) => $this->formatComment($c)),
         ]);
     }
 
@@ -40,16 +40,16 @@ class CommentController extends Controller
     public function store(Request $request, Document $document): JsonResponse
     {
         $data = $request->validate([
-            'body'      => ['required', 'string', 'max:5000'],
+            'body' => ['required', 'string', 'max:5000'],
             'parent_id' => ['nullable', 'exists:comments,id'],
         ]);
 
         $comment = Comment::create([
             'commentable_type' => Document::class,
-            'commentable_id'   => $document->id,
-            'user_id'          => $request->user()->id,
-            'body'             => $data['body'],
-            'parent_id'        => $data['parent_id'] ?? null,
+            'commentable_id' => $document->id,
+            'user_id' => $request->user()->id,
+            'body' => $data['body'],
+            'parent_id' => $data['parent_id'] ?? null,
         ]);
 
         // Handle attachments
@@ -57,10 +57,10 @@ class CommentController extends Controller
             foreach ($request->file('attachments') as $file) {
                 $path = $file->store("comments/{$document->id}", 'private');
                 $comment->attachments()->create([
-                    'file_path'         => $path,
+                    'file_path' => $path,
                     'original_filename' => $file->getClientOriginalName(),
-                    'file_size'         => $file->getSize(),
-                    'file_type'         => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'file_type' => $file->getMimeType(),
                 ]);
             }
         }
@@ -69,7 +69,7 @@ class CommentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->formatComment($comment->load(['user', 'attachments'])),
+            'data' => $this->formatComment($comment->load(['user', 'attachments'])),
         ], 201);
     }
 
@@ -79,7 +79,7 @@ class CommentController extends Controller
      */
     public function destroy(Request $request, Document $document, Comment $comment): JsonResponse
     {
-        if ($comment->user_id !== $request->user()->id && !$request->user()->hasRole('super-admin')) {
+        if ($comment->user_id !== $request->user()->id && ! $request->user()->hasRole('super-admin')) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
@@ -92,21 +92,21 @@ class CommentController extends Controller
     private function formatComment(Comment $comment): array
     {
         return [
-            'id'          => $comment->id,
-            'body'        => $comment->body,
-            'created_at'  => $comment->created_at->toIso8601String(),
-            'user'        => $comment->user ? [
-                'id'         => $comment->user->id,
-                'name'       => $comment->user->name,
+            'id' => $comment->id,
+            'body' => $comment->body,
+            'created_at' => $comment->created_at->toIso8601String(),
+            'user' => $comment->user ? [
+                'id' => $comment->user->id,
+                'name' => $comment->user->name,
                 'avatar_url' => $comment->user->avatar_url,
             ] : null,
-            'attachments' => $comment->attachments->map(fn($a) => [
-                'id'       => $a->id,
+            'attachments' => $comment->attachments->map(fn ($a) => [
+                'id' => $a->id,
                 'filename' => $a->original_filename,
-                'size'     => $a->file_size,
+                'size' => $a->file_size,
             ])->toArray(),
             'replies' => $comment->relationLoaded('replies')
-                ? $comment->replies->map(fn($r) => $this->formatComment($r))->toArray()
+                ? $comment->replies->map(fn ($r) => $this->formatComment($r))->toArray()
                 : [],
         ];
     }

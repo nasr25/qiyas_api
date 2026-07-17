@@ -15,28 +15,40 @@ class DocumentPolicy
     /** Super admin always passes. */
     public function before(User $user): ?bool
     {
-        if ($user->hasRole('super-admin')) return true;
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
         return null;
     }
 
     /** Any authenticated user can view documents in their department. */
     public function view(User $user, Document $document): bool
     {
-        if ($user->hasRole('auditor') || $user->hasRole('executive')) return true;
+        if ($user->hasRole('auditor') || $user->hasRole('executive')) {
+            return true;
+        }
+
         return $user->department_id === $document->department_id;
     }
 
     /** Employees and coordinators in the same department can upload. */
     public function upload(User $user, Document $document): bool
     {
-        if ($document->cycle->isReadOnly()) return false;
+        if ($document->cycle->isReadOnly()) {
+            return false;
+        }
+
         return $user->department_id === $document->department_id;
     }
 
     /** Same department members can submit. */
     public function submit(User $user, Document $document): bool
     {
-        if ($document->cycle->isReadOnly()) return false;
+        if ($document->cycle->isReadOnly()) {
+            return false;
+        }
+
         return $user->department_id === $document->department_id;
     }
 
@@ -55,7 +67,10 @@ class DocumentPolicy
     /** Department members can download. */
     public function download(User $user, Document $document): bool
     {
-        if ($user->hasRole('auditor') || $user->hasRole('executive')) return true;
+        if ($user->hasRole('auditor') || $user->hasRole('executive')) {
+            return true;
+        }
+
         return $user->department_id === $document->department_id;
     }
 }

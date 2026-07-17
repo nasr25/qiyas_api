@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Downloadable .xlsx template for bulk-importing standards.
  * Header names are the exact keys the importer expects (snake_case).
  */
-class StandardsTemplateExport implements FromArray, WithHeadings, WithStyles, WithTitle, WithColumnWidths
+class StandardsTemplateExport implements FromArray, WithColumnWidths, WithHeadings, WithStyles, WithTitle
 {
     public function title(): string
     {

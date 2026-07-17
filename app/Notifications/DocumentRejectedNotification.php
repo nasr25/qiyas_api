@@ -14,10 +14,13 @@ class DocumentRejectedNotification extends Notification implements ShouldQueue
 
     public function __construct(
         private readonly Document $document,
-        private readonly string   $reason
+        private readonly string $reason
     ) {}
 
-    public function via(object $notifiable): array { return ['database', 'mail']; }
+    public function via(object $notifiable): array
+    {
+        return ['database', 'mail'];
+    }
 
     public function toMail(object $notifiable): MailMessage
     {
@@ -31,12 +34,12 @@ class DocumentRejectedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'        => 'document_rejected',
+            'type' => 'document_rejected',
             'document_id' => $this->document->id,
-            'title'       => $this->document->title,
-            'reason'      => $this->reason,
-            'message_ar'  => "تم رفض الوثيقة: {$this->document->title}",
-            'message_en'  => "Document rejected: {$this->document->title}",
+            'title' => $this->document->title,
+            'reason' => $this->reason,
+            'message_ar' => "تم رفض الوثيقة: {$this->document->title}",
+            'message_en' => "Document rejected: {$this->document->title}",
         ];
     }
 }

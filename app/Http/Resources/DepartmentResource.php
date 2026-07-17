@@ -10,14 +10,14 @@ class DepartmentResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
-            'name_ar'     => $this->name_ar,
-            'name_en'     => $this->name_en,
-            'name'        => $this->name,
+            'id' => $this->id,
+            'name_ar' => $this->name_ar,
+            'name_en' => $this->name_en,
+            'name' => $this->name,
             'description' => $this->description,
-            'is_active'   => $this->is_active,
+            'is_active' => $this->is_active,
             'users_count' => $this->whenCounted('users'),
-            'created_at'  => $this->created_at->toIso8601String(),
+            'created_at' => $this->created_at->toIso8601String(),
         ];
     }
 }

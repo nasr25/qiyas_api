@@ -11,7 +11,6 @@ use App\Models\ExtensionRequest;
 use App\Models\Standard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Dashboard data aggregation for all user roles.
@@ -53,19 +52,19 @@ class DashboardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'cycle'              => $cycle ? [
-                    'id'         => $cycle->id,
-                    'name'       => $cycle->name,
-                    'year'       => $cycle->year,
-                    'status'     => $cycle->status,
-                    'end_date'   => $cycle->end_date?->toDateString(),
+            'data' => [
+                'cycle' => $cycle ? [
+                    'id' => $cycle->id,
+                    'name' => $cycle->name,
+                    'year' => $cycle->year,
+                    'status' => $cycle->status,
+                    'end_date' => $cycle->end_date?->toDateString(),
                     'final_score' => $cycle->final_score,
                 ] : null,
-                'stats'             => $stats,
-                'departments'       => $departments,
-                'completion_rate'   => $this->calcCompletionRate($stats),
-                'recent_activity'   => $this->getRecentActivity(10),
+                'stats' => $stats,
+                'departments' => $departments,
+                'completion_rate' => $this->calcCompletionRate($stats),
+                'recent_activity' => $this->getRecentActivity(10),
             ],
         ]);
     }
@@ -79,20 +78,20 @@ class DashboardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'cycle'                  => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
-                'pending_reviews'        => Document::where('status', 'under_review')
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
+            'data' => [
+                'cycle' => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
+                'pending_reviews' => Document::where('status', 'under_review')
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
                     ->count(),
-                'rejected_count'         => Document::where('status', 'rejected')
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
+                'rejected_count' => Document::where('status', 'rejected')
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
                     ->where('reviewed_by', auth()->id())
                     ->count(),
-                'extension_requests'     => ExtensionRequest::where('status', 'pending')->count(),
-                'overdue_count'          => Document::where('status', 'overdue')
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
+                'extension_requests' => ExtensionRequest::where('status', 'pending')->count(),
+                'overdue_count' => Document::where('status', 'overdue')
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
                     ->count(),
-                'approved_today'         => Document::where('status', 'approved')
+                'approved_today' => Document::where('status', 'approved')
                     ->where('reviewed_by', auth()->id())
                     ->whereDate('reviewed_at', today())
                     ->count(),
@@ -111,18 +110,18 @@ class DashboardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'cycle'           => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
-                'stats'           => $stats,
+            'data' => [
+                'cycle' => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
+                'stats' => $stats,
                 'completion_rate' => $this->calcCompletionRate($stats),
-                'standards_count'    => $catalog['standards'],
+                'standards_count' => $catalog['standards'],
                 'requirements_count' => $catalog['requirements'],
                 'recent_documents' => Document::with(['requirement', 'submitter'])
                     ->where('department_id', $user->department_id)
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
-                    ->latest()->take(5)->get()->map(fn($d) => [
-                        'id'     => $d->id,
-                        'title'  => $d->title,
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
+                    ->latest()->take(5)->get()->map(fn ($d) => [
+                        'id' => $d->id,
+                        'title' => $d->title,
                         'status' => $d->status,
                     ]),
             ],
@@ -140,24 +139,24 @@ class DashboardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'cycle'           => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
-                'stats'           => $stats,
+            'data' => [
+                'cycle' => $cycle ? ['id' => $cycle->id, 'name' => $cycle->name] : null,
+                'stats' => $stats,
                 'completion_rate' => $this->calcCompletionRate($stats),
-                'standards_count'    => $catalog['standards'],
+                'standards_count' => $catalog['standards'],
                 'requirements_count' => $catalog['requirements'],
                 'extension_requests' => ExtensionRequest::where('status', 'pending')
-                    ->whereHas('document', fn($q) => $q->where('department_id', $user->department_id)
-                        ->when($cycle, fn($d) => $d->where('cycle_id', $cycle->id)))
+                    ->whereHas('document', fn ($q) => $q->where('department_id', $user->department_id)
+                        ->when($cycle, fn ($d) => $d->where('cycle_id', $cycle->id)))
                     ->count(),
-                'upcoming_deadlines' => \App\Models\Standard::query()
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
-                    ->whereHas('departments', fn($d) => $d->where('departments.id', $user->department_id))
+                'upcoming_deadlines' => Standard::query()
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
+                    ->whereHas('departments', fn ($d) => $d->where('departments.id', $user->department_id))
                     ->whereNotNull('due_date')
                     ->whereBetween('due_date', [now()->toDateString(), now()->addDays(30)->toDateString()])
                     ->count(),
-                'my_documents'    => Document::where('department_id', $user->department_id)
-                    ->when($cycle, fn($q) => $q->where('cycle_id', $cycle->id))
+                'my_documents' => Document::where('department_id', $user->department_id)
+                    ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
                     ->where('submitted_by', $user->id)
                     ->count(),
             ],
@@ -180,7 +179,7 @@ class DashboardController extends Controller
             ->pluck('id');
 
         return [
-            'standards'    => $standardIds->count(),
+            'standards' => $standardIds->count(),
             'requirements' => EvidenceRequirement::whereIn('standard_id', $standardIds)->count(),
         ];
     }
@@ -189,8 +188,8 @@ class DashboardController extends Controller
     private function getDocumentStats(?int $cycleId, ?int $departmentId = null): array
     {
         $query = Document::query()
-            ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId))
-            ->when($departmentId, fn($q) => $q->where('department_id', $departmentId));
+            ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId));
 
         $counts = $query->selectRaw('status, count(*) as count')
             ->groupBy('status')
@@ -198,12 +197,12 @@ class DashboardController extends Controller
             ->toArray();
 
         return [
-            'total'        => array_sum($counts),
-            'draft'        => $counts['draft'] ?? 0,
+            'total' => array_sum($counts),
+            'draft' => $counts['draft'] ?? 0,
             'under_review' => $counts['under_review'] ?? 0,
-            'approved'     => $counts['approved'] ?? 0,
-            'rejected'     => $counts['rejected'] ?? 0,
-            'overdue'      => $counts['overdue'] ?? 0,
+            'approved' => $counts['approved'] ?? 0,
+            'rejected' => $counts['rejected'] ?? 0,
+            'overdue' => $counts['overdue'] ?? 0,
         ];
     }
 
@@ -214,11 +213,12 @@ class DashboardController extends Controller
 
         return $departments->map(function ($dept) use ($cycleId) {
             $stats = $this->getDocumentStats($cycleId, $dept->id);
+
             return [
-                'id'              => $dept->id,
-                'name_ar'         => $dept->name_ar,
-                'name_en'         => $dept->name_en,
-                'stats'           => $stats,
+                'id' => $dept->id,
+                'name_ar' => $dept->name_ar,
+                'name_en' => $dept->name_en,
+                'stats' => $stats,
                 'completion_rate' => $this->calcCompletionRate($stats),
             ];
         })->toArray();
@@ -227,7 +227,10 @@ class DashboardController extends Controller
     /** Calculates the completion rate (approved / total). */
     private function calcCompletionRate(array $stats): float
     {
-        if ($stats['total'] === 0) return 0;
+        if ($stats['total'] === 0) {
+            return 0;
+        }
+
         return round(($stats['approved'] / $stats['total']) * 100, 1);
     }
 
@@ -237,6 +240,7 @@ class DashboardController extends Controller
         if ($request->cycle_id) {
             return AssessmentCycle::find($request->cycle_id);
         }
+
         return AssessmentCycle::active()->first()
             ?? AssessmentCycle::latest()->first();
     }
@@ -248,12 +252,12 @@ class DashboardController extends Controller
             ->latest('updated_at')
             ->take($limit)
             ->get()
-            ->map(fn($d) => [
-                'id'            => $d->id,
-                'title'         => $d->title,
-                'status'        => $d->status,
-                'department'    => $d->department?->name_ar,
-                'updated_at'    => $d->updated_at->diffForHumans(),
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'title' => $d->title,
+                'status' => $d->status,
+                'department' => $d->department?->name_ar,
+                'updated_at' => $d->updated_at->diffForHumans(),
             ])
             ->toArray();
     }

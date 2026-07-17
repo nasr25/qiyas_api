@@ -15,9 +15,9 @@ class Setting extends Model
     /**
      * Retrieves a setting value with optional default.
      *
-     * @param string $group  Setting group (e.g., 'general', 'smtp', 'branding')
-     * @param string $key    Setting key
-     * @param mixed  $default  Default value if not found
+     * @param  string  $group  Setting group (e.g., 'general', 'smtp', 'branding')
+     * @param  string  $key  Setting key
+     * @param  mixed  $default  Default value if not found
      */
     public static function get(string $group, string $key, mixed $default = null): mixed
     {
@@ -26,17 +26,20 @@ class Setting extends Model
         // "access a property on an incomplete object".
         $cached = Cache::remember("setting.{$group}.{$key}", 3600, function () use ($group, $key) {
             $setting = static::where('group', $group)->where('key', $key)->first();
+
             return $setting ? ['value' => $setting->value, 'type' => $setting->type] : null;
         });
 
-        if (!$cached) return $default;
+        if (! $cached) {
+            return $default;
+        }
 
         return match ($cached['type']) {
             'boolean' => (bool) $cached['value'],
             'integer' => (int) $cached['value'],
-            'float'   => (float) $cached['value'],
-            'json'    => json_decode($cached['value'], true),
-            default   => $cached['value'],
+            'float' => (float) $cached['value'],
+            'json' => json_decode($cached['value'], true),
+            default => $cached['value'],
         };
     }
 

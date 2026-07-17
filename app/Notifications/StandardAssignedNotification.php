@@ -34,11 +34,11 @@ class StandardAssignedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'        => 'standard_assigned',
+            'type' => 'standard_assigned',
             'standard_id' => $this->standard->id,
-            'number'      => $this->standard->standard_number,
-            'message_ar'  => "تم إسناد معيار جديد إلى إدارتك: {$this->standard->standard_number} — {$this->standard->name_ar}",
-            'message_en'  => "A new standard was assigned to your department: {$this->standard->standard_number}",
+            'number' => $this->standard->standard_number,
+            'message_ar' => "تم إسناد معيار جديد إلى إدارتك: {$this->standard->standard_number} — {$this->standard->name_ar}",
+            'message_en' => "A new standard was assigned to your department: {$this->standard->standard_number}",
         ];
     }
 }

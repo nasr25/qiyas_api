@@ -30,21 +30,21 @@ class UserController extends Controller
     {
         $users = User::with('department')
             ->withCount(['documents'])
-            ->when($request->search, fn($q) => $q->where('name', 'like', "%{$request->search}%")
+            ->when($request->search, fn ($q) => $q->where('name', 'like', "%{$request->search}%")
                 ->orWhere('username', 'like', "%{$request->search}%"))
-            ->when($request->department_id, fn($q) => $q->where('department_id', $request->department_id))
-            ->when($request->role, fn($q) => $q->role($request->role))
-            ->when(isset($request->is_active), fn($q) => $q->where('is_active', $request->boolean('is_active')))
+            ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
+            ->when($request->role, fn ($q) => $q->role($request->role))
+            ->when(isset($request->is_active), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->latest()
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => UserResource::collection($users),
-            'meta'    => [
+            'data' => UserResource::collection($users),
+            'meta' => [
                 'current_page' => $users->currentPage(),
-                'last_page'    => $users->lastPage(),
-                'total'        => $users->total(),
+                'last_page' => $users->lastPage(),
+                'total' => $users->total(),
             ],
         ]);
     }
@@ -60,14 +60,14 @@ class UserController extends Controller
         $request->merge(['department_id' => $request->input('department_id') ?: null]);
 
         $data = $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'username'      => ['required', 'string', 'max:100', 'unique:users'],
-            'email'         => ['nullable', 'email', 'unique:users'],
-            'password'      => ['required', 'string', 'min:8'],
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:100', 'unique:users'],
+            'email' => ['nullable', 'email', 'unique:users'],
+            'password' => ['required', 'string', 'min:8'],
             'department_id' => ['nullable', 'exists:departments,id'],
-            'roles'         => ['required', 'array'],
-            'roles.*'       => ['exists:roles,name'],
-            'locale'        => ['nullable', 'in:ar,en'],
+            'roles' => ['required', 'array'],
+            'roles.*' => ['exists:roles,name'],
+            'locale' => ['nullable', 'in:ar,en'],
         ]);
 
         $user = $this->authService->createLocalUser($data);
@@ -77,7 +77,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($user->load('department')),
+            'data' => new UserResource($user->load('department')),
             'message' => 'User created successfully.',
         ], 201);
     }
@@ -104,18 +104,18 @@ class UserController extends Controller
         $request->merge(['department_id' => $request->input('department_id') ?: null]);
 
         $data = $request->validate([
-            'username'      => ['required', 'string', 'unique:users,username'],
-            'display_name'  => ['required', 'string'],
-            'email'         => ['nullable', 'email'],
+            'username' => ['required', 'string', 'unique:users,username'],
+            'display_name' => ['required', 'string'],
+            'email' => ['nullable', 'email'],
             'department_id' => ['nullable', 'exists:departments,id'],
-            'roles'         => ['required', 'array'],
-            'roles.*'       => ['exists:roles,name'],
+            'roles' => ['required', 'array'],
+            'roles.*' => ['exists:roles,name'],
         ]);
 
         $user = $this->authService->upsertLdapUser([
-            'username'     => $data['username'],
+            'username' => $data['username'],
             'display_name' => $data['display_name'],
-            'email'        => $data['email'] ?? null,
+            'email' => $data['email'] ?? null,
         ], [
             'department_id' => $data['department_id'] ?? null,
         ]);
@@ -126,7 +126,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($user->load('department')),
+            'data' => new UserResource($user->load('department')),
             'message' => 'AD user imported successfully.',
         ], 201);
     }
@@ -139,7 +139,7 @@ class UserController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($user->load('department')),
+            'data' => new UserResource($user->load('department')),
         ]);
     }
 
@@ -152,13 +152,13 @@ class UserController extends Controller
         $request->merge(['department_id' => $request->input('department_id') ?: null]);
 
         $data = $request->validate([
-            'name'          => ['sometimes', 'string', 'max:255'],
-            'email'         => ['nullable', 'email', Rule::unique('users')->ignore($user->id)],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['nullable', 'email', Rule::unique('users')->ignore($user->id)],
             'department_id' => ['nullable', 'exists:departments,id'],
-            'is_active'     => ['sometimes', 'boolean'],
-            'roles'         => ['sometimes', 'array'],
-            'roles.*'       => ['exists:roles,name'],
-            'locale'        => ['nullable', 'in:ar,en'],
+            'is_active' => ['sometimes', 'boolean'],
+            'roles' => ['sometimes', 'array'],
+            'roles.*' => ['exists:roles,name'],
+            'locale' => ['nullable', 'in:ar,en'],
         ]);
 
         $oldValues = $user->only(['name', 'email', 'department_id', 'is_active']);
@@ -172,7 +172,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($user->fresh()->load('department')),
+            'data' => new UserResource($user->fresh()->load('department')),
         ]);
     }
 
@@ -189,7 +189,7 @@ class UserController extends Controller
         $data = $request->validate(['password' => ['required', 'string', 'min:8']]);
 
         $user->update([
-            'password'             => $data['password'],
+            'password' => $data['password'],
             'must_change_password' => true,
         ]);
 
@@ -204,14 +204,14 @@ class UserController extends Controller
      */
     public function toggleActive(User $user): JsonResponse
     {
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
 
         $action = $user->is_active ? 'activated' : 'deactivated';
         AuditService::log("user.{$action}", "User '{$user->username}' {$action}", $user);
 
         return response()->json([
             'success' => true,
-            'data'    => ['is_active' => $user->is_active],
+            'data' => ['is_active' => $user->is_active],
         ]);
     }
 }

@@ -22,10 +22,22 @@ class EvidenceUploadValidator
 
     private const DANGEROUS_MIME_PATTERNS = [
         'application/x-msdownload', 'application/x-msdos-program', 'application/x-executable',
+        // application/x-dosexec / application/vnd.microsoft.portable-executable are what
+        // different libmagic versions report for a Windows PE binary (.exe/.dll)
+        // regardless of what extension it was renamed to — both are listed since the
+        // exact string PHP's fileinfo returns depends on the platform's magic database
+        // (verified to differ between the macOS dev environment and a typical Linux
+        // build); without these a renamed executable could pass the extension allowlist.
+        'application/x-dosexec', 'application/vnd.microsoft.portable-executable',
+        'application/x-elf', 'application/x-mach-binary',
         'application/x-sh', 'application/x-shellscript', 'application/x-bat',
         'text/x-php', 'application/x-httpd-php', 'application/java-archive',
         'application/vnd.ms-excel.sheet.macroEnabled.12', 'application/vnd.ms-word.document.macroEnabled.12',
         'application/vnd.ms-office.vbaProject',
+        // Markup types that could be abused for stored XSS if ever rendered inline by a
+        // future feature; blocked here even though the extension allowlist already
+        // excludes them by default, as a second, independent layer of defense.
+        'text/html', 'application/xhtml+xml', 'image/svg+xml',
     ];
 
     private const DANGEROUS_EXTENSIONS = ['exe', 'bat', 'cmd', 'sh', 'msi', 'com', 'scr', 'js', 'vbs', 'ps1', 'jar', 'app', 'php', 'phtml'];

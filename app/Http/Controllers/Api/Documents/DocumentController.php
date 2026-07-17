@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Api\Documents;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DocumentResource;
 use App\Models\Document;
-use App\Models\EvidenceRequirement;
+use App\Models\Setting;
 use App\Services\AuditService;
 use App\Services\DocumentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 /**
  * Manages document lifecycle: creation, upload, submission, and retrieval.
@@ -36,21 +35,21 @@ class DocumentController extends Controller
         }
 
         $query
-            ->when($request->cycle_id, fn($q) => $q->where('cycle_id', $request->cycle_id))
-            ->when($request->department_id, fn($q) => $q->where('department_id', $request->department_id))
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
-            ->when($request->requirement_id, fn($q) => $q->where('requirement_id', $request->requirement_id))
-            ->when($request->standard_id, fn($q) => $q->whereHas('requirement', fn($r) => $r->where('standard_id', $request->standard_id)));
+            ->when($request->cycle_id, fn ($q) => $q->where('cycle_id', $request->cycle_id))
+            ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
+            ->when($request->status, fn ($q) => $q->where('status', $request->status))
+            ->when($request->requirement_id, fn ($q) => $q->where('requirement_id', $request->requirement_id))
+            ->when($request->standard_id, fn ($q) => $q->whereHas('requirement', fn ($r) => $r->where('standard_id', $request->standard_id)));
 
         $documents = $query->latest()->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => DocumentResource::collection($documents),
-            'meta'    => [
+            'data' => DocumentResource::collection($documents),
+            'meta' => [
                 'current_page' => $documents->currentPage(),
-                'last_page'    => $documents->lastPage(),
-                'total'        => $documents->total(),
+                'last_page' => $documents->lastPage(),
+                'total' => $documents->total(),
             ],
         ]);
     }
@@ -63,8 +62,8 @@ class DocumentController extends Controller
     {
         $data = $request->validate([
             'requirement_id' => ['required', 'exists:evidence_requirements,id'],
-            'cycle_id'       => ['required', 'exists:assessment_cycles,id'],
-            'title'          => ['required', 'string', 'max:500'],
+            'cycle_id' => ['required', 'exists:assessment_cycles,id'],
+            'title' => ['required', 'string', 'max:500'],
         ]);
 
         $user = $request->user();
@@ -72,15 +71,15 @@ class DocumentController extends Controller
         $document = Document::firstOrCreate(
             [
                 'requirement_id' => $data['requirement_id'],
-                'department_id'  => $user->department_id,
-                'cycle_id'       => $data['cycle_id'],
+                'department_id' => $user->department_id,
+                'cycle_id' => $data['cycle_id'],
             ],
             ['title' => $data['title'], 'status' => 'draft']
         );
 
         return response()->json([
             'success' => true,
-            'data'    => new DocumentResource($document->load(['requirement', 'department'])),
+            'data' => new DocumentResource($document->load(['requirement', 'department'])),
         ], 201);
     }
 
@@ -106,7 +105,7 @@ class DocumentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DocumentResource($document->load([
+            'data' => new DocumentResource($document->load([
                 'requirement', 'department', 'submitter', 'reviewer',
                 'versions.uploader', 'currentVersionFile',
             ])),
@@ -127,10 +126,10 @@ class DocumentController extends Controller
         }
 
         $allowedTypes = Setting('upload.allowed_types', 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png');
-        $maxKb        = (int) Setting('upload.max_size_mb', 20) * 1024;
+        $maxKb = (int) Setting('upload.max_size_mb', 20) * 1024;
 
         $request->validate([
-            'file'          => ['required', 'file', "max:{$maxKb}"],
+            'file' => ['required', 'file', "max:{$maxKb}"],
             'change_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -143,8 +142,8 @@ class DocumentController extends Controller
         if (! in_array($ext, $allowed, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unsupported file type. Allowed: ' . implode(', ', $allowed) . '.',
-                'errors'  => ['file' => ['Unsupported file type.']],
+                'message' => 'Unsupported file type. Allowed: '.implode(', ', $allowed).'.',
+                'errors' => ['file' => ['Unsupported file type.']],
             ], 422);
         }
 
@@ -157,10 +156,10 @@ class DocumentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
+            'data' => [
                 'version_number' => $version->version_number,
-                'filename'       => $version->original_filename,
-                'file_size'      => $version->file_size_human,
+                'filename' => $version->original_filename,
+                'file_size' => $version->file_size_human,
             ],
             'message' => 'File uploaded successfully.',
         ]);
@@ -186,7 +185,7 @@ class DocumentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DocumentResource($document),
+            'data' => new DocumentResource($document),
             'message' => 'Document submitted for review.',
         ]);
     }
@@ -213,5 +212,6 @@ class DocumentController extends Controller
 function Setting(string $key, mixed $default = null): mixed
 {
     [$group, $settingKey] = explode('.', $key, 2) + ['general', $key];
-    return \App\Models\Setting::get($group, $settingKey, $default);
+
+    return Setting::get($group, $settingKey, $default);
 }

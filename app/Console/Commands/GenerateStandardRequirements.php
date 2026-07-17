@@ -28,12 +28,12 @@ class GenerateStandardRequirements extends Command
             ->chunkById(100, function ($standards) use (&$created) {
                 foreach ($standards as $standard) {
                     EvidenceRequirement::create([
-                        'standard_id'  => $standard->id,
-                        'title_ar'     => 'مستندات الإثبات',
-                        'title_en'     => 'Evidence Documents',
-                        'description'  => $standard->evidence_documents,
+                        'standard_id' => $standard->id,
+                        'title_ar' => 'مستندات الإثبات',
+                        'title_en' => 'Evidence Documents',
+                        'description' => $standard->evidence_documents,
                         'is_mandatory' => true,
-                        'sort_order'   => 1,
+                        'sort_order' => 1,
                     ]);
                     $created++;
                 }

@@ -33,6 +33,10 @@ class QiyasImportValidator
         $errors = [];
         $warnings = [];
 
+        if ($this->isMacroEnabledWorkbook($absolutePath)) {
+            return $this->fail([['sheet' => '-', 'row' => 0, 'column' => '-', 'value' => null, 'code' => 'MACRO_ENABLED_REJECTED', 'message_ar' => 'الملفات التي تحتوي على وحدات ماكرو (VBA) مرفوضة لأسباب أمنية، حتى لو كان امتدادها xlsx. الرجاء استخدام القالب الرسمي دون تعديل نوعه.', 'message_en' => 'Workbooks containing VBA macros are rejected for security reasons, even if renamed to .xlsx. Please use the official template unmodified.']]);
+        }
+
         try {
             $sheets = Excel::toArray(null, $absolutePath);
         } catch (\Throwable $e) {
@@ -174,6 +178,31 @@ class QiyasImportValidator
                 'error_count' => count($errors),
             ],
         ];
+    }
+
+    /**
+     * A .xlsm file renamed to .xlsx is still a valid OOXML/ZIP container and
+     * would otherwise pass both the filename-extension check in
+     * QiyasImportController and PhpSpreadsheet's own reader — the definitive
+     * signal that a workbook is macro-enabled is the presence of a VBA
+     * project part inside the package, so it is checked directly here
+     * rather than trusted from the client-supplied filename. This runs on
+     * both preview and confirm, since both call validate() against the same
+     * stored file.
+     */
+    private function isMacroEnabledWorkbook(string $absolutePath): bool
+    {
+        $zip = new \ZipArchive;
+        if ($zip->open($absolutePath) !== true) {
+            // Not a readable zip container at all — let the normal
+            // "unreadable workbook" path below report that clearly.
+            return false;
+        }
+
+        $hasVbaProject = $zip->locateName('xl/vbaProject.bin') !== false;
+        $zip->close();
+
+        return $hasVbaProject;
     }
 
     private function fail(array $errors, string $templateVersion = 'unknown'): array

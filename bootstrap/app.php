@@ -3,6 +3,7 @@
 use App\Exceptions\WorkflowConflictException;
 use App\Http\Middleware\EnsureProgramAccess;
 use App\Http\Middleware\JwtMiddleware;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -33,6 +34,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             HandleCors::class,
         ]);
+
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

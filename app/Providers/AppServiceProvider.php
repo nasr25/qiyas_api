@@ -12,11 +12,14 @@ use App\Services\AuthService;
 use App\Services\CycleService;
 use App\Services\DocumentService;
 use App\Services\LdapService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,18 +29,22 @@ class AppServiceProvider extends ServiceProvider
     {
         // Bind services as singletons
         $this->app->singleton(LdapService::class);
-        $this->app->singleton(AuthService::class, fn($app) => new AuthService($app->make(LdapService::class)));
+        $this->app->singleton(AuthService::class, fn ($app) => new AuthService($app->make(LdapService::class)));
         $this->app->singleton(DocumentService::class);
         $this->app->singleton(CycleService::class);
     }
 
     public function boot(): void
     {
+        $this->configureRateLimiting();
+
         Gate::policy(Document::class, DocumentPolicy::class);
 
         // Super Admin bypasses all authorization
         Gate::before(function ($user, $ability) {
-            if ($user->hasRole('super-admin')) return true;
+            if ($user->hasRole('super-admin')) {
+                return true;
+            }
         });
 
         $this->applyMailSettings();
@@ -50,7 +57,9 @@ class AppServiceProvider extends ServiceProvider
         Queue::failing(function ($event) {
             try {
                 $name = method_exists($event->job, 'resolveName') ? $event->job->resolveName() : '';
-                if (! str_contains($name, 'Notification') && ! str_contains($name, 'Mail')) return;
+                if (! str_contains($name, 'Notification') && ! str_contains($name, 'Mail')) {
+                    return;
+                }
 
                 $log = EmailLog::where('status', 'pending')->latest()->first();
                 $log?->update(['status' => 'failed', 'error' => $event->exception?->getMessage()]);
@@ -61,25 +70,45 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
+     * Rate limits for the unauthenticated credential-testing endpoints
+     * (login, quick-login). Keyed by IP + the submitted username so a
+     * distributed brute force against many accounts from one IP is caught
+     * without punishing a shared-NAT office trying one account too many
+     * times. Applied via `throttle:login` in routes/api.php.
+     */
+    private function configureRateLimiting(): void
+    {
+        RateLimiter::for('login', function (Request $request) {
+            $key = strtolower((string) $request->input('username')).'|'.$request->ip();
+
+            return Limit::perMinute(10)->by($key);
+        });
+    }
+
+    /**
      * Override the SMTP mailer config from the DB Settings (the admin SMTP tab),
      * so email works without editing .env. Only applies when a host is set.
      */
     private function applyMailSettings(): void
     {
         try {
-            if (! Schema::hasTable('settings')) return;
+            if (! Schema::hasTable('settings')) {
+                return;
+            }
 
             $host = Setting::get('smtp', 'host');
-            if (! $host) return;
+            if (! $host) {
+                return;
+            }
 
             config([
-                'mail.default'                  => 'smtp',
-                'mail.mailers.smtp.host'        => $host,
-                'mail.mailers.smtp.port'        => (int) Setting::get('smtp', 'port', 587),
-                'mail.mailers.smtp.username'    => Setting::get('smtp', 'username'),
-                'mail.mailers.smtp.password'    => Setting::get('smtp', 'password'),
-                'mail.mailers.smtp.encryption'  => Setting::get('smtp', 'encryption') ?: null,
-                'mail.from.address'             => Setting::get('smtp', 'from_address') ?: config('mail.from.address'),
+                'mail.default' => 'smtp',
+                'mail.mailers.smtp.host' => $host,
+                'mail.mailers.smtp.port' => (int) Setting::get('smtp', 'port', 587),
+                'mail.mailers.smtp.username' => Setting::get('smtp', 'username'),
+                'mail.mailers.smtp.password' => Setting::get('smtp', 'password'),
+                'mail.mailers.smtp.encryption' => Setting::get('smtp', 'encryption') ?: null,
+                'mail.from.address' => Setting::get('smtp', 'from_address') ?: config('mail.from.address'),
             ]);
         } catch (\Throwable $e) {
             // Never let mail config break booting (e.g. before migrations run).

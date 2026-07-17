@@ -35,12 +35,12 @@ class DocumentSubmittedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'          => 'document_submitted',
-            'document_id'   => $this->document->id,
-            'title'         => $this->document->title,
-            'department'    => $this->document->department?->name_ar,
-            'message_ar'    => "وثيقة جديدة بانتظار مراجعتك: {$this->document->title}",
-            'message_en'    => "New document pending review: {$this->document->title}",
+            'type' => 'document_submitted',
+            'document_id' => $this->document->id,
+            'title' => $this->document->title,
+            'department' => $this->document->department?->name_ar,
+            'message_ar' => "وثيقة جديدة بانتظار مراجعتك: {$this->document->title}",
+            'message_en' => "New document pending review: {$this->document->title}",
         ];
     }
 }

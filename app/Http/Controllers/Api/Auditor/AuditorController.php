@@ -7,6 +7,8 @@ use App\Http\Resources\DocumentResource;
 use App\Http\Resources\ExtensionRequestResource;
 use App\Models\Document;
 use App\Models\ExtensionRequest;
+use App\Notifications\ExtensionApprovedNotification;
+use App\Notifications\ExtensionRejectedNotification;
 use App\Services\AuditService;
 use App\Services\DocumentService;
 use Illuminate\Http\JsonResponse;
@@ -27,20 +29,20 @@ class AuditorController extends Controller
     {
         $documents = Document::with(['requirement.standard', 'department', 'submitter', 'currentVersionFile'])
             ->where('status', 'under_review')
-            ->when($request->cycle_id, fn($q) => $q->where('cycle_id', $request->cycle_id))
-            ->when($request->department_id, fn($q) => $q->where('department_id', $request->department_id))
+            ->when($request->cycle_id, fn ($q) => $q->where('cycle_id', $request->cycle_id))
+            ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
             ->latest('submitted_at')
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => DocumentResource::collection($documents),
-            'meta'    => [
+            'data' => DocumentResource::collection($documents),
+            'meta' => [
                 'current_page' => $documents->currentPage(),
-                'last_page'    => $documents->lastPage(),
-                'total'        => $documents->total(),
+                'last_page' => $documents->lastPage(),
+                'total' => $documents->total(),
             ],
-            'stats'   => [
+            'stats' => [
                 'approved_today' => Document::where('status', 'approved')
                     ->where('reviewed_by', $request->user()->id)
                     ->whereDate('reviewed_at', today())->count(),
@@ -65,7 +67,7 @@ class AuditorController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DocumentResource($document),
+            'data' => new DocumentResource($document),
             'message' => 'Document approved.',
         ]);
     }
@@ -86,7 +88,7 @@ class AuditorController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new DocumentResource($document),
+            'data' => new DocumentResource($document),
             'message' => 'Document rejected.',
         ]);
     }
@@ -98,17 +100,17 @@ class AuditorController extends Controller
     public function extensionRequests(Request $request): JsonResponse
     {
         $requests = ExtensionRequest::with(['document.requirement', 'document.department', 'requester'])
-            ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->status, fn ($q) => $q->where('status', $request->status))
             ->latest()
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => ExtensionRequestResource::collection($requests),
-            'meta'    => [
+            'data' => ExtensionRequestResource::collection($requests),
+            'meta' => [
                 'current_page' => $requests->currentPage(),
-                'last_page'    => $requests->lastPage(),
-                'total'        => $requests->total(),
+                'last_page' => $requests->lastPage(),
+                'total' => $requests->total(),
             ],
         ]);
     }
@@ -119,16 +121,16 @@ class AuditorController extends Controller
      */
     public function approveExtension(Request $request, ExtensionRequest $extensionRequest): JsonResponse
     {
-        if (!$extensionRequest->isPending()) {
+        if (! $extensionRequest->isPending()) {
             return response()->json(['success' => false, 'message' => 'This request is not pending.'], 422);
         }
 
         $data = $request->validate(['reviewer_notes' => ['nullable', 'string', 'max:1000']]);
 
         $extensionRequest->update([
-            'status'         => 'approved',
-            'reviewed_by'    => $request->user()->id,
-            'reviewed_at'    => now(),
+            'status' => 'approved',
+            'reviewed_by' => $request->user()->id,
+            'reviewed_at' => now(),
             'reviewer_notes' => $data['reviewer_notes'] ?? null,
         ]);
 
@@ -136,12 +138,12 @@ class AuditorController extends Controller
 
         // Notify requester
         $extensionRequest->requester->notify(
-            new \App\Notifications\ExtensionApprovedNotification($extensionRequest)
+            new ExtensionApprovedNotification($extensionRequest)
         );
 
         return response()->json([
             'success' => true,
-            'data'    => new ExtensionRequestResource($extensionRequest->fresh()),
+            'data' => new ExtensionRequestResource($extensionRequest->fresh()),
             'message' => 'Extension approved.',
         ]);
     }
@@ -152,28 +154,28 @@ class AuditorController extends Controller
      */
     public function rejectExtension(Request $request, ExtensionRequest $extensionRequest): JsonResponse
     {
-        if (!$extensionRequest->isPending()) {
+        if (! $extensionRequest->isPending()) {
             return response()->json(['success' => false, 'message' => 'This request is not pending.'], 422);
         }
 
         $data = $request->validate(['reviewer_notes' => ['required', 'string', 'min:5', 'max:1000']]);
 
         $extensionRequest->update([
-            'status'         => 'rejected',
-            'reviewed_by'    => $request->user()->id,
-            'reviewed_at'    => now(),
+            'status' => 'rejected',
+            'reviewed_by' => $request->user()->id,
+            'reviewed_at' => now(),
             'reviewer_notes' => $data['reviewer_notes'],
         ]);
 
         AuditService::log('extension.rejected', "Extension request #{$extensionRequest->id} rejected", $extensionRequest);
 
         $extensionRequest->requester->notify(
-            new \App\Notifications\ExtensionRejectedNotification($extensionRequest)
+            new ExtensionRejectedNotification($extensionRequest)
         );
 
         return response()->json([
             'success' => true,
-            'data'    => new ExtensionRequestResource($extensionRequest->fresh()),
+            'data' => new ExtensionRequestResource($extensionRequest->fresh()),
             'message' => 'Extension rejected.',
         ]);
     }

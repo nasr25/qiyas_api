@@ -39,20 +39,20 @@ class StandardController extends Controller
         $standards = $cycle->standards()
             ->with(['departments', 'evidenceRequirements'])
             ->withCount('evidenceRequirements')
-            ->when($request->search, fn($q) => $q
+            ->when($request->search, fn ($q) => $q
                 ->where('name_ar', 'like', "%{$request->search}%")
                 ->orWhere('name_en', 'like', "%{$request->search}%")
                 ->orWhere('standard_number', 'like', "%{$request->search}%"))
-            ->when($scopedDeptId, fn($q) => $q->whereHas('departments', fn($dq) => $dq->where('departments.id', $scopedDeptId)))
+            ->when($scopedDeptId, fn ($q) => $q->whereHas('departments', fn ($dq) => $dq->where('departments.id', $scopedDeptId)))
             ->paginate($request->get('per_page', 15));
 
         return response()->json([
             'success' => true,
-            'data'    => StandardResource::collection($standards),
-            'meta'    => [
+            'data' => StandardResource::collection($standards),
+            'meta' => [
                 'current_page' => $standards->currentPage(),
-                'last_page'    => $standards->lastPage(),
-                'total'        => $standards->total(),
+                'last_page' => $standards->lastPage(),
+                'total' => $standards->total(),
             ],
         ]);
     }
@@ -68,28 +68,28 @@ class StandardController extends Controller
         }
 
         $data = $request->validate([
-            'standard_number'  => ['required', 'string', 'max:50'],
-            'name_ar'          => ['required', 'string', 'max:500'],
-            'name_en'          => ['nullable', 'string', 'max:500'],
-            'description'      => ['nullable', 'string'],
-            'version'          => ['nullable', 'string', 'max:20'],
-            'weight'           => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'due_date'         => ['nullable', 'date'],
+            'standard_number' => ['required', 'string', 'max:50'],
+            'name_ar' => ['required', 'string', 'max:500'],
+            'name_en' => ['nullable', 'string', 'max:500'],
+            'description' => ['nullable', 'string'],
+            'version' => ['nullable', 'string', 'max:20'],
+            'weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'due_date' => ['nullable', 'date'],
             // DGA Qiyas catalog fields
-            'perspective'              => ['nullable', 'string', 'max:500'],
-            'axis'                     => ['nullable', 'string', 'max:500'],
+            'perspective' => ['nullable', 'string', 'max:500'],
+            'axis' => ['nullable', 'string', 'max:500'],
             'application_requirements' => ['nullable', 'string'],
-            'evidence_documents'       => ['nullable', 'string'],
-            'scope'                    => ['nullable', 'string'],
-            'related_references'       => ['nullable', 'string'],
-            'status'                   => ['nullable', 'string', 'max:100'],
-            'department_ids'   => ['nullable', 'array'],
+            'evidence_documents' => ['nullable', 'string'],
+            'scope' => ['nullable', 'string'],
+            'related_references' => ['nullable', 'string'],
+            'status' => ['nullable', 'string', 'max:100'],
+            'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);
 
         $standard = $cycle->standards()->create($data);
 
-        if (!empty($data['department_ids'])) {
+        if (! empty($data['department_ids'])) {
             $pivot = array_fill_keys($data['department_ids'], [
                 'assigned_at' => now(),
                 'assigned_by' => $request->user()->id,
@@ -102,7 +102,7 @@ class StandardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new StandardResource($standard->load(['departments', 'evidenceRequirements'])),
+            'data' => new StandardResource($standard->load(['departments', 'evidenceRequirements'])),
         ], 201);
     }
 
@@ -112,7 +112,7 @@ class StandardController extends Controller
      */
     public function template(AssessmentCycle $cycle): BinaryFileResponse
     {
-        return Excel::download(new StandardsTemplateExport(), 'standards-import-template.xlsx');
+        return Excel::download(new StandardsTemplateExport, 'standards-import-template.xlsx');
     }
 
     /**
@@ -128,11 +128,11 @@ class StandardController extends Controller
         // Validate by extension — Excel files are often mis-detected by finfo.
         $request->validate(['file' => ['required', 'file', 'max:5120']]);
         $ext = strtolower($request->file('file')->getClientOriginalExtension());
-        if (!in_array($ext, ['xlsx', 'xls', 'csv'], true)) {
+        if (! in_array($ext, ['xlsx', 'xls', 'csv'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unsupported file type. Allowed: xlsx, xls, csv.',
-                'errors'  => ['file' => ['Unsupported file type.']],
+                'errors' => ['file' => ['Unsupported file type.']],
             ], 422);
         }
 
@@ -141,16 +141,16 @@ class StandardController extends Controller
 
         AuditService::log(
             'standard.imported',
-            "Imported standards into cycle #{$cycle->id}: {$import->created} created, {$import->updated} updated, " . count($import->errors) . ' error(s)',
+            "Imported standards into cycle #{$cycle->id}: {$import->created} created, {$import->updated} updated, ".count($import->errors).' error(s)',
         );
 
         return response()->json([
             'success' => true,
             'message' => 'Import processed.',
-            'data'    => [
+            'data' => [
                 'created' => $import->created,
                 'updated' => $import->updated,
-                'errors'  => $import->errors,
+                'errors' => $import->errors,
             ],
         ]);
     }
@@ -163,7 +163,7 @@ class StandardController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new StandardResource($standard->load(['departments', 'evidenceRequirements'])),
+            'data' => new StandardResource($standard->load(['departments', 'evidenceRequirements'])),
         ]);
     }
 
@@ -183,7 +183,7 @@ class StandardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new StandardResource(
+            'data' => new StandardResource(
                 $standard->loadCount('evidenceRequirements')
                     ->load(['departments', 'evidenceRequirements'])
             ),
@@ -197,11 +197,13 @@ class StandardController extends Controller
     private function notifyAssignedDepartments(Standard $standard, iterable $departmentIds): void
     {
         $departmentIds = collect($departmentIds)->filter()->all();
-        if (empty($departmentIds)) return;
+        if (empty($departmentIds)) {
+            return;
+        }
 
         AuditService::log(
             'standard.assigned',
-            "Standard '{$standard->standard_number}' assigned to department(s): " . implode(', ', $departmentIds),
+            "Standard '{$standard->standard_number}' assigned to department(s): ".implode(', ', $departmentIds),
             $standard,
         );
 
@@ -225,33 +227,33 @@ class StandardController extends Controller
         }
 
         $data = $request->validate([
-            'standard_number'  => ['sometimes', 'string', 'max:50'],
-            'name_ar'          => ['sometimes', 'string', 'max:500'],
-            'name_en'          => ['nullable', 'string', 'max:500'],
-            'description'      => ['nullable', 'string'],
-            'version'          => ['nullable', 'string', 'max:20'],
-            'weight'           => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'due_date'         => ['nullable', 'date'],
-            'is_active'        => ['boolean'],
-            'perspective'              => ['nullable', 'string', 'max:500'],
-            'axis'                     => ['nullable', 'string', 'max:500'],
+            'standard_number' => ['sometimes', 'string', 'max:50'],
+            'name_ar' => ['sometimes', 'string', 'max:500'],
+            'name_en' => ['nullable', 'string', 'max:500'],
+            'description' => ['nullable', 'string'],
+            'version' => ['nullable', 'string', 'max:20'],
+            'weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'due_date' => ['nullable', 'date'],
+            'is_active' => ['boolean'],
+            'perspective' => ['nullable', 'string', 'max:500'],
+            'axis' => ['nullable', 'string', 'max:500'],
             'application_requirements' => ['nullable', 'string'],
-            'evidence_documents'       => ['nullable', 'string'],
-            'scope'                    => ['nullable', 'string'],
-            'related_references'       => ['nullable', 'string'],
-            'status'                   => ['nullable', 'string', 'max:100'],
-            'department_ids'   => ['nullable', 'array'],
+            'evidence_documents' => ['nullable', 'string'],
+            'scope' => ['nullable', 'string'],
+            'related_references' => ['nullable', 'string'],
+            'status' => ['nullable', 'string', 'max:100'],
+            'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);
 
         $standard->update($data);
 
         if (array_key_exists('department_ids', $data)) {
-            $newIds   = $data['department_ids'] ?? [];
+            $newIds = $data['department_ids'] ?? [];
             $existing = $standard->departments()->pluck('departments.id')->all();
-            $added    = array_diff($newIds, $existing);
+            $added = array_diff($newIds, $existing);
 
-            $pivot = collect($newIds)->mapWithKeys(fn($id) => [
+            $pivot = collect($newIds)->mapWithKeys(fn ($id) => [
                 $id => ['assigned_at' => now(), 'assigned_by' => $request->user()->id],
             ])->toArray();
             $standard->departments()->sync($pivot);
@@ -264,7 +266,7 @@ class StandardController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => new StandardResource($standard->fresh()->load(['departments', 'evidenceRequirements'])),
+            'data' => new StandardResource($standard->fresh()->load(['departments', 'evidenceRequirements'])),
         ]);
     }
 
