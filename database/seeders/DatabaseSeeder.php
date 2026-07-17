@@ -30,6 +30,11 @@ class DatabaseSeeder extends Seeder
             // authorization layer (program_user_roles). See
             // docs/qiyas-migration-plan.md.
             ProgramMembershipSeeder::class,
+            // Phase 2: default bilingual notification templates.
+            EmailTemplatesSeeder::class,
+            // Phase 2: department-manager/employee test accounts for
+            // Department B, and workflow demo data covering every status.
+            QiyasWorkflowDemoSeeder::class,
         ]);
     }
 }

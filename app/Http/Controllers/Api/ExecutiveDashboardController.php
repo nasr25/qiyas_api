@@ -7,6 +7,10 @@ use App\Models\AssessmentCycle;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\Document;
+use App\Models\EvidenceSubmission;
+use App\Models\ExtensionRequest;
+use App\Models\RequirementAssignment;
+use App\Models\SlaInstance;
 use App\Models\Standard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,8 +53,39 @@ class ExecutiveDashboardController extends Controller
                 'programs' => $programCards,
                 'department_comparison' => $this->departmentComparison($programs),
                 'upcoming_deadlines' => $this->upcomingDeadlines($programs),
+                // Phase 2 operational workflow metrics (RequirementAssignment /
+                // EvidenceSubmission) — additive, does not replace the
+                // Document-based stats above which remain valid for any
+                // legacy data.
+                'workflow' => $this->workflowMetrics($programs),
             ],
         ]);
+    }
+
+    private function workflowMetrics($programs): array
+    {
+        $programIds = $programs->pluck('id');
+
+        $totalRequirements = Standard::whereIn('compliance_program_id', $programIds)->count();
+        $approved = EvidenceSubmission::whereIn('compliance_program_id', $programIds)->where('status', 'approved')->count();
+        $pending = EvidenceSubmission::whereIn('compliance_program_id', $programIds)
+            ->whereIn('status', ['pending_department_manager', 'pending_auditor', 'pending_program_manager'])->count();
+        $overdue = RequirementAssignment::whereIn('compliance_program_id', $programIds)->where('status', 'active')
+            ->whereDate('effective_due_date', '<', now()->toDateString())->count();
+
+        return [
+            'compliance_percentage' => $totalRequirements > 0 ? round(($approved / $totalRequirements) * 100, 1) : 0,
+            'approved_requirements' => $approved,
+            'pending_requirements' => $pending,
+            'overdue_requirements' => $overdue,
+            'sla_breaches_by_stage' => SlaInstance::whereIn('compliance_program_id', $programIds)
+                ->where('status', 'breached')->selectRaw('stage, count(*) as count')->groupBy('stage')->pluck('count', 'stage'),
+            'extension_requests' => [
+                'pending' => ExtensionRequest::whereIn('compliance_program_id', $programIds)->pending()->count(),
+                'approved' => ExtensionRequest::whereIn('compliance_program_id', $programIds)->where('status', 'approved')->count(),
+                'rejected' => ExtensionRequest::whereIn('compliance_program_id', $programIds)->where('status', 'rejected')->count(),
+            ],
+        ];
     }
 
     private function documentStats(int $programId, ?int $cycleId): array

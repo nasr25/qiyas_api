@@ -52,6 +52,21 @@ class ComplianceProgram extends Model
         return $this->hasMany(ProgramUserRole::class, 'compliance_program_id');
     }
 
+    public function requirementAssignments()
+    {
+        return $this->hasMany(RequirementAssignment::class, 'compliance_program_id');
+    }
+
+    public function evidenceSubmissions()
+    {
+        return $this->hasMany(EvidenceSubmission::class, 'compliance_program_id');
+    }
+
+    public function slaSetting()
+    {
+        return $this->hasOne(SlaSetting::class, 'compliance_program_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

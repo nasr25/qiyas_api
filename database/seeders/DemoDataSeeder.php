@@ -11,8 +11,10 @@ use App\Models\EvidenceRequirement;
 use App\Models\ExtensionRequest;
 use App\Models\Standard;
 use App\Models\User;
+use App\Notifications\StandardAssignedNotification;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -53,18 +55,18 @@ class DemoDataSeeder extends Seeder
         return AssessmentCycle::firstOrCreate(
             ['name' => 'الدورة التجريبية 2026'],
             [
-                'year'         => (int) now()->year,
-                'start_date'   => now()->startOfYear()->toDateString(),
-                'end_date'     => now()->endOfYear()->toDateString(),
-                'status'       => 'active',
+                'year' => (int) now()->year,
+                'start_date' => now()->startOfYear()->toDateString(),
+                'end_date' => now()->endOfYear()->toDateString(),
+                'status' => 'active',
                 'activated_at' => now(),
-                'created_by'   => $admin?->id,
+                'created_by' => $admin?->id,
             ],
         );
     }
 
     /** Creates ~8 sample standards with requirements, each assigned to a few departments. */
-    private function ensureStandards(AssessmentCycle $cycle, $departments, ?int $adminId): \Illuminate\Support\Collection
+    private function ensureStandards(AssessmentCycle $cycle, $departments, ?int $adminId): Collection
     {
         $samples = [
             ['التخطيط الاستراتيجي للتحول الرقمي', 'Digital Transformation Strategy'],
@@ -80,13 +82,13 @@ class DemoDataSeeder extends Seeder
         $standards = collect();
         foreach ($samples as $i => [$ar, $en]) {
             $standard = Standard::updateOrCreate(
-                ['cycle_id' => $cycle->id, 'standard_number' => '1.' . ($i + 1)],
+                ['cycle_id' => $cycle->id, 'standard_number' => '1.'.($i + 1)],
                 [
-                    'name_ar'      => $ar,
-                    'name_en'      => $en,
-                    'description'  => "هدف المعيار: تحقيق {$ar} وفق أفضل الممارسات.",
-                    'weight'       => 5,
-                    'is_active'    => true,
+                    'name_ar' => $ar,
+                    'name_en' => $en,
+                    'description' => "هدف المعيار: تحقيق {$ar} وفق أفضل الممارسات.",
+                    'weight' => 5,
+                    'is_active' => true,
                     'evidence_documents' => 'إرفاق الوثائق المعتمدة التي تثبت تطبيق المعيار.',
                 ],
             );
@@ -102,9 +104,9 @@ class DemoDataSeeder extends Seeder
                 EvidenceRequirement::firstOrCreate(
                     ['standard_id' => $standard->id, 'sort_order' => $r],
                     [
-                        'title_ar'     => "متطلب الإثبات {$r}",
-                        'title_en'     => "Evidence requirement {$r}",
-                        'description'  => 'يرجى إرفاق المستندات الداعمة.',
+                        'title_ar' => "متطلب الإثبات {$r}",
+                        'title_en' => "Evidence requirement {$r}",
+                        'description' => 'يرجى إرفاق المستندات الداعمة.',
                         'is_mandatory' => true,
                     ],
                 );
@@ -120,7 +122,7 @@ class DemoDataSeeder extends Seeder
     private function ensureDocuments(AssessmentCycle $cycle, $standards): void
     {
         $statuses = ['draft', 'under_review', 'approved', 'rejected', 'overdue'];
-        $auditor  = User::where('username', 'auditor_1')->first();
+        $auditor = User::where('username', 'auditor_1')->first();
 
         $i = 0;
         foreach ($standards as $standard) {
@@ -134,28 +136,28 @@ class DemoDataSeeder extends Seeder
                     $doc = Document::firstOrCreate(
                         ['requirement_id' => $req->id, 'department_id' => $dept->id, 'cycle_id' => $cycle->id],
                         [
-                            'title'           => "{$standard->name_ar} — {$req->title_ar}",
-                            'status'          => $status,
+                            'title' => "{$standard->name_ar} — {$req->title_ar}",
+                            'status' => $status,
                             'current_version' => $status === 'draft' ? 0 : 1,
-                            'submitted_by'    => $status === 'draft' ? null : $employee?->id,
-                            'submitted_at'    => $status === 'draft' ? null : now()->subDays(rand(1, 20)),
-                            'reviewed_by'     => in_array($status, ['approved', 'rejected']) ? $auditor?->id : null,
-                            'reviewed_at'     => in_array($status, ['approved', 'rejected']) ? now()->subDays(rand(0, 5)) : null,
-                            'rejection_reason'=> $status === 'rejected' ? 'المستندات غير مكتملة، يرجى إعادة الرفع.' : null,
+                            'submitted_by' => $status === 'draft' ? null : $employee?->id,
+                            'submitted_at' => $status === 'draft' ? null : now()->subDays(rand(1, 20)),
+                            'reviewed_by' => in_array($status, ['approved', 'rejected']) ? $auditor?->id : null,
+                            'reviewed_at' => in_array($status, ['approved', 'rejected']) ? now()->subDays(rand(0, 5)) : null,
+                            'rejection_reason' => $status === 'rejected' ? 'المستندات غير مكتملة، يرجى إعادة الرفع.' : null,
                         ],
                     );
 
                     if ($status !== 'draft' && $doc->versions()->count() === 0) {
                         DocumentVersion::create([
-                            'document_id'       => $doc->id,
-                            'version_number'    => 1,
-                            'file_path'         => 'demo/sample.pdf',
+                            'document_id' => $doc->id,
+                            'version_number' => 1,
+                            'file_path' => 'demo/sample.pdf',
                             'original_filename' => 'sample-evidence.pdf',
-                            'file_size'         => 102400,
-                            'file_type'         => 'application/pdf',
-                            'file_hash'         => hash('sha256', "demo-{$doc->id}"),
-                            'uploaded_by'       => $employee?->id ?? $auditor?->id,
-                            'uploaded_at'       => now()->subDays(rand(1, 20)),
+                            'file_size' => 102400,
+                            'file_type' => 'application/pdf',
+                            'file_hash' => hash('sha256', "demo-{$doc->id}"),
+                            'uploaded_by' => $employee?->id ?? $auditor?->id,
+                            'uploaded_at' => now()->subDays(rand(1, 20)),
                         ]);
                     }
                 }
@@ -165,17 +167,21 @@ class DemoDataSeeder extends Seeder
 
     private function ensureExtensionRequests(): void
     {
-        if (ExtensionRequest::count() > 0) return;
+        if (ExtensionRequest::count() > 0) {
+            return;
+        }
 
         Document::whereIn('status', ['under_review', 'overdue'])->take(5)->get()->each(function ($doc) {
             $requester = $doc->submitted_by ?? User::role('employee')->value('id');
-            if (! $requester) return;
+            if (! $requester) {
+                return;
+            }
             ExtensionRequest::create([
-                'document_id'    => $doc->id,
-                'requested_by'   => $requester,
+                'document_id' => $doc->id,
+                'requested_by' => $requester,
                 'requested_date' => now()->addDays(14)->toDateString(),
-                'reason'         => 'نحتاج وقتًا إضافيًا لاستكمال جمع المستندات المطلوبة.',
-                'status'         => 'pending',
+                'reason' => 'نحتاج وقتًا إضافيًا لاستكمال جمع المستندات المطلوبة.',
+                'status' => 'pending',
             ]);
         });
     }
@@ -184,12 +190,14 @@ class DemoDataSeeder extends Seeder
     {
         $employees = User::role('employee')->take(8)->get();
         foreach ($employees as $user) {
-            if ($user->notifications()->count() > 0) continue;
+            if ($user->notifications()->count() > 0) {
+                continue;
+            }
             $user->notifications()->create([
-                'id'      => (string) Str::uuid(),
-                'type'    => \App\Notifications\StandardAssignedNotification::class,
-                'data'    => [
-                    'type'       => 'standard_assigned',
+                'id' => (string) Str::uuid(),
+                'type' => StandardAssignedNotification::class,
+                'data' => [
+                    'type' => 'standard_assigned',
                     'message_ar' => 'تم إسناد معيار جديد إلى إدارتك. يرجى رفع مستندات الإثبات.',
                     'message_en' => 'A new standard was assigned to your department.',
                 ],
@@ -200,17 +208,19 @@ class DemoDataSeeder extends Seeder
 
     private function ensureAuditLogs(): void
     {
-        if (AuditLog::count() > 5) return;
+        if (AuditLog::count() > 5) {
+            return;
+        }
 
         $auditor = User::where('username', 'auditor_1')->first();
         foreach (['document.approved', 'document.rejected', 'standard.created', 'user.created', 'settings.updated'] as $idx => $action) {
             AuditLog::create([
-                'user_id'     => $auditor?->id,
-                'action'      => $action,
+                'user_id' => $auditor?->id,
+                'action' => $action,
                 'description' => "إجراء تجريبي: {$action}",
-                'ip_address'  => '127.0.0.1',
-                'user_agent'  => 'DemoDataSeeder',
-                'created_at'  => Carbon::now()->subDays($idx),
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'DemoDataSeeder',
+                'created_at' => Carbon::now()->subDays($idx),
             ]);
         }
     }

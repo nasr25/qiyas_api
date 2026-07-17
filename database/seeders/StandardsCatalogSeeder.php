@@ -22,12 +22,14 @@ class StandardsCatalogSeeder extends Seeder
 
         if (! file_exists($path)) {
             $this->command?->warn("qiyas_standards.json not found at {$path} — skipping.");
+
             return;
         }
 
         $records = json_decode(file_get_contents($path), true) ?: [];
         if (empty($records)) {
             $this->command?->warn('qiyas_standards.json is empty — skipping.');
+
             return;
         }
 
@@ -35,16 +37,17 @@ class StandardsCatalogSeeder extends Seeder
         $creator = User::query()->orderBy('id')->first();
         if (! $creator) {
             $this->command?->warn('No users found. Run SuperAdminSeeder first — skipping standards catalog.');
+
             return;
         }
 
         $cycle = AssessmentCycle::firstOrCreate(
             ['name' => 'معايير قياس للتحول الرقمي (مستوردة)'],
             [
-                'year'       => (int) now()->year,
+                'year' => (int) now()->year,
                 'start_date' => now()->startOfYear()->toDateString(),
-                'end_date'   => now()->endOfYear()->toDateString(),
-                'status'     => 'draft',
+                'end_date' => now()->endOfYear()->toDateString(),
+                'status' => 'draft',
                 'created_by' => $creator->id,
             ],
         );
@@ -59,17 +62,17 @@ class StandardsCatalogSeeder extends Seeder
             Standard::updateOrCreate(
                 ['cycle_id' => $cycle->id, 'standard_number' => $number],
                 [
-                    'perspective'              => $r['perspective'] ?? null,
-                    'axis'                     => $r['axis'] ?? null,
-                    'name_ar'                  => $r['name_ar'] ?? $number,
-                    'name_en'                  => null,
-                    'description'              => $r['objective'] ?? null, // الهدف
+                    'perspective' => $r['perspective'] ?? null,
+                    'axis' => $r['axis'] ?? null,
+                    'name_ar' => $r['name_ar'] ?? $number,
+                    'name_en' => null,
+                    'description' => $r['objective'] ?? null, // الهدف
                     'application_requirements' => $r['application_requirements'] ?? null,
-                    'evidence_documents'       => $r['evidence_documents'] ?? null,
-                    'scope'                    => $r['scope'] ?? null,
-                    'related_references'       => $r['related_references'] ?? null,
-                    'status'                   => $r['status'] ?? null,
-                    'is_active'                => true,
+                    'evidence_documents' => $r['evidence_documents'] ?? null,
+                    'scope' => $r['scope'] ?? null,
+                    'related_references' => $r['related_references'] ?? null,
+                    'status' => $r['status'] ?? null,
+                    'is_active' => true,
                 ],
             );
             $count++;

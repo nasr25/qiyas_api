@@ -81,6 +81,21 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(ProgramUserRole::class);
     }
 
+    public function requirementAssignments()
+    {
+        return $this->hasMany(RequirementAssignment::class, 'employee_id');
+    }
+
+    public function evidenceSubmissions()
+    {
+        return $this->hasMany(EvidenceSubmission::class, 'submitted_by');
+    }
+
+    public function workflowDecisions()
+    {
+        return $this->hasMany(WorkflowDecision::class, 'reviewer_id');
+    }
+
     // ─── Program access helpers ────────────────────────────────────────────
     // Platform-level roles (super-admin, executive) bypass program_user_roles
     // entirely: super-admin has full access to every program, executive has
@@ -121,6 +136,39 @@ class User extends Authenticatable implements JWTSubject
             ->where('compliance_program_id', $program->id)
             ->pluck('role_key')
             ->all();
+    }
+
+    public function hasProgramRole(ComplianceProgram $program, string $roleKey): bool
+    {
+        if ($this->isPlatformSuperAdmin()) {
+            return true;
+        }
+
+        return $this->programRoles()
+            ->active()
+            ->where('compliance_program_id', $program->id)
+            ->where('role_key', $roleKey)
+            ->exists();
+    }
+
+    /** The department this user manages inside a program, if they hold the department-manager role there. */
+    public function managedDepartmentId(ComplianceProgram $program): ?int
+    {
+        return $this->programRoles()
+            ->active()
+            ->where('compliance_program_id', $program->id)
+            ->where('role_key', ProgramUserRole::ROLE_DEPARTMENT_MANAGER)
+            ->value('department_id');
+    }
+
+    /** The department this user belongs to as an employee inside a program (falls back to the platform department_id column). */
+    public function employeeDepartmentId(ComplianceProgram $program): ?int
+    {
+        return $this->programRoles()
+            ->active()
+            ->where('compliance_program_id', $program->id)
+            ->where('role_key', ProgramUserRole::ROLE_EMPLOYEE)
+            ->value('department_id') ?? $this->department_id;
     }
 
     // ─── Accessors ───────────────────────────────────────────────────────────

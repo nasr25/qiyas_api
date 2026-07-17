@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\WorkflowConflictException;
 use App\Http\Middleware\EnsureProgramAccess;
 use App\Http\Middleware\JwtMiddleware;
 use App\Http\Middleware\SetLocale;
@@ -49,6 +50,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->is('api/*')) {
                 return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+        });
+        $exceptions->render(function (WorkflowConflictException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 409);
             }
         });
     })->create();

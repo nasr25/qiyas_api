@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\EmailLogController;
+use App\Http\Controllers\Api\Admin\EmailTemplateController;
 use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Auditor\AuditorController;
@@ -24,6 +25,17 @@ use App\Http\Controllers\Api\Reports\ExportController;
 use App\Http\Controllers\Api\Reports\ReportController;
 use App\Http\Controllers\Api\Standards\EvidenceRequirementController;
 use App\Http\Controllers\Api\Standards\StandardController;
+use App\Http\Controllers\Api\Workflow\AuditorReviewController;
+use App\Http\Controllers\Api\Workflow\DepartmentManagerReviewController;
+use App\Http\Controllers\Api\Workflow\EvidenceSubmissionController;
+use App\Http\Controllers\Api\Workflow\ExtensionRequestController as WorkflowExtensionRequestController;
+use App\Http\Controllers\Api\Workflow\MyRequirementsController;
+use App\Http\Controllers\Api\Workflow\ProgramManagerReviewController;
+use App\Http\Controllers\Api\Workflow\QiyasImportController;
+use App\Http\Controllers\Api\Workflow\RequirementAssignmentController;
+use App\Http\Controllers\Api\Workflow\SlaSettingController;
+use App\Http\Controllers\Api\Workflow\WorkflowDashboardController;
+use App\Http\Controllers\Api\Workflow\WorkflowReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -88,6 +100,75 @@ Route::prefix('v1')->group(function () {
                     Route::get('by-standard', [ProgramReportController::class, 'byStandard']);
                     Route::get('by-status', [ProgramReportController::class, 'byStatus']);
                     Route::get('cycle-summary', [ProgramReportController::class, 'cycleSummary']);
+                    // Phase 2 workflow reports
+                    Route::get('overdue-requirements', [WorkflowReportController::class, 'overdueRequirements']);
+                    Route::get('sla-breaches', [WorkflowReportController::class, 'slaBreaches']);
+                    Route::get('extension-requests', [WorkflowReportController::class, 'extensionRequests']);
+                    Route::get('rejection-frequency', [WorkflowReportController::class, 'rejectionFrequency']);
+                    Route::get('employee-performance', [WorkflowReportController::class, 'employeePerformance']);
+                });
+
+                // ── Phase 2: operational workflow ─────────────────────────
+                Route::prefix('assignments')->group(function () {
+                    Route::get('/', [RequirementAssignmentController::class, 'index']);
+                    Route::post('/', [RequirementAssignmentController::class, 'store']);
+                    Route::get('{assignment}', [RequirementAssignmentController::class, 'show']);
+                    Route::put('{assignment}', [RequirementAssignmentController::class, 'update']);
+                    Route::post('{assignment}/reassign', [RequirementAssignmentController::class, 'reassign']);
+                    Route::get('{assignment}/history', [RequirementAssignmentController::class, 'history']);
+                    Route::post('{assignment}/draft', [EvidenceSubmissionController::class, 'openDraft']);
+                    Route::post('{assignment}/extension-requests', [WorkflowExtensionRequestController::class, 'store']);
+                    Route::get('{assignment}/extension-requests', [WorkflowExtensionRequestController::class, 'forAssignment']);
+                });
+
+                Route::get('my-requirements', [MyRequirementsController::class, 'index']);
+
+                Route::prefix('evidence-submissions')->group(function () {
+                    Route::get('{submission}', [EvidenceSubmissionController::class, 'show']);
+                    Route::get('{submission}/timeline', [EvidenceSubmissionController::class, 'timeline']);
+                    Route::post('{submission}/files', [EvidenceSubmissionController::class, 'uploadFile']);
+                    Route::post('{submission}/submit', [EvidenceSubmissionController::class, 'submit']);
+                });
+                Route::delete('evidence-files/{file}', [EvidenceSubmissionController::class, 'removeFile']);
+                Route::get('evidence-files/{file}/download', [EvidenceSubmissionController::class, 'downloadFile']);
+
+                Route::post('extension-requests/{extensionRequest}/cancel', [WorkflowExtensionRequestController::class, 'cancel']);
+
+                Route::get('sla-settings', [SlaSettingController::class, 'show']);
+                Route::put('sla-settings', [SlaSettingController::class, 'update']);
+
+                Route::prefix('dashboards')->group(function () {
+                    Route::get('program-manager', [WorkflowDashboardController::class, 'programManager']);
+                    Route::get('department-manager', [WorkflowDashboardController::class, 'departmentManager']);
+                    Route::get('auditor', [WorkflowDashboardController::class, 'auditor']);
+                    Route::get('employee', [WorkflowDashboardController::class, 'employee']);
+                });
+
+                Route::get('requirements-template', [QiyasImportController::class, 'downloadTemplate']);
+                Route::get('requirements-imports', [QiyasImportController::class, 'index']);
+                Route::post('requirements-import/preview', [QiyasImportController::class, 'preview']);
+                Route::post('requirements-import/{importLog}/confirm', [QiyasImportController::class, 'confirm']);
+                Route::get('requirements-import/{importLog}/error-report', [QiyasImportController::class, 'errorReport']);
+
+                Route::prefix('reviews')->group(function () {
+                    Route::prefix('department-manager')->group(function () {
+                        Route::get('/', [DepartmentManagerReviewController::class, 'index']);
+                        Route::post('{submission}/approve', [DepartmentManagerReviewController::class, 'approve']);
+                        Route::post('{submission}/reject', [DepartmentManagerReviewController::class, 'reject']);
+                    });
+                    Route::prefix('auditor')->group(function () {
+                        Route::get('/', [AuditorReviewController::class, 'index']);
+                        Route::post('{submission}/approve', [AuditorReviewController::class, 'approve']);
+                        Route::post('{submission}/reject', [AuditorReviewController::class, 'reject']);
+                        Route::get('extension-requests', [AuditorReviewController::class, 'extensionRequests']);
+                        Route::post('extension-requests/{extensionRequest}/approve', [AuditorReviewController::class, 'approveExtension']);
+                        Route::post('extension-requests/{extensionRequest}/reject', [AuditorReviewController::class, 'rejectExtension']);
+                    });
+                    Route::prefix('program-manager')->group(function () {
+                        Route::get('/', [ProgramManagerReviewController::class, 'index']);
+                        Route::post('{submission}/approve', [ProgramManagerReviewController::class, 'approve']);
+                        Route::post('{submission}/reject', [ProgramManagerReviewController::class, 'reject']);
+                    });
                 });
             });
         });
@@ -208,6 +289,13 @@ Route::prefix('v1')->group(function () {
 
             // Email delivery log
             Route::get('email-logs', [EmailLogController::class, 'index']);
+
+            // Email notification templates (Phase 2)
+            Route::get('email-templates', [EmailTemplateController::class, 'index']);
+            Route::get('email-templates/{template}', [EmailTemplateController::class, 'show']);
+            Route::put('email-templates/{template}', [EmailTemplateController::class, 'update']);
+            Route::post('email-templates/{template}/preview', [EmailTemplateController::class, 'preview']);
+            Route::post('email-templates/{template}/test-send', [EmailTemplateController::class, 'testSend']);
         });
 
         // Audit Logs — super-admin (all), qiyas-admin, and auditor (review history).

@@ -60,6 +60,16 @@ class AssessmentCycle extends Model
         return $this->hasMany(Document::class, 'cycle_id');
     }
 
+    public function requirementAssignments()
+    {
+        return $this->hasMany(RequirementAssignment::class, 'program_cycle_id');
+    }
+
+    public function evidenceSubmissions()
+    {
+        return $this->hasMany(EvidenceSubmission::class, 'program_cycle_id');
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /** Returns true if this cycle is currently active. */
