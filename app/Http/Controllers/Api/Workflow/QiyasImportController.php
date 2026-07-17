@@ -37,7 +37,7 @@ class QiyasImportController extends Controller
 
         return Excel::download(
             new QiyasRequirementsTemplateExport($program->code, $program->id, $cycleId),
-            'qiyas-requirements-template.xlsx',
+            strtolower($program->code).'-requirements-template.xlsx',
         );
     }
 

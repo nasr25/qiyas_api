@@ -21,6 +21,8 @@ class DepartmentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorizeView($request);
+
         $departments = Department::withCount('users')
             ->when($request->search, fn ($q) => $q
                 ->where('name_ar', 'like', "%{$request->search}%")
@@ -66,8 +68,10 @@ class DepartmentController extends Controller
      * Shows a department.
      * GET /api/v1/departments/{department}
      */
-    public function show(Department $department): JsonResponse
+    public function show(Request $request, Department $department): JsonResponse
     {
+        $this->authorizeView($request);
+
         return response()->json([
             'success' => true,
             'data' => new DepartmentResource($department->loadCount('users')),
@@ -115,5 +119,22 @@ class DepartmentController extends Controller
         $department->delete();
 
         return response()->json(['success' => true, 'message' => 'Department deleted.']);
+    }
+
+    /**
+     * Departments are shared, global reference data, not program-scoped —
+     * every legitimate program member (any program, any role) needs to
+     * read this list (e.g. to populate an assignment form's department
+     * dropdown). A platform-wide `departments.view` spatie permission
+     * remains sufficient (unchanged for existing Qiyas users), but is no
+     * longer the ONLY path: an active membership in any compliance
+     * program is equally sufficient. See docs/cross-program-isolation.md.
+     */
+    private function authorizeView(Request $request): void
+    {
+        $user = $request->user();
+        $hasAnyProgramMembership = $user->programRoles()->where('is_active', true)->exists();
+
+        abort_unless($user->isPlatformSuperAdmin() || $user->can('departments.view') || $hasAnyProgramMembership, 403, 'Forbidden.');
     }
 }

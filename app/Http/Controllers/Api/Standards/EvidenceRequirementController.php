@@ -35,6 +35,8 @@ class EvidenceRequirementController extends Controller
      */
     public function store(Request $request, Standard $standard): JsonResponse
     {
+        $this->authorizeManage($request, $standard, 'requirements.create');
+
         $data = $request->validate([
             'title_ar' => ['required', 'string', 'max:500'],
             'title_en' => ['required', 'string', 'max:500'],
@@ -72,6 +74,8 @@ class EvidenceRequirementController extends Controller
      */
     public function update(Request $request, Standard $standard, EvidenceRequirement $requirement): JsonResponse
     {
+        $this->authorizeManage($request, $standard, 'requirements.edit');
+
         $data = $request->validate([
             'title_ar' => ['sometimes', 'string', 'max:500'],
             'title_en' => ['sometimes', 'string', 'max:500'],
@@ -92,8 +96,10 @@ class EvidenceRequirementController extends Controller
      * Deletes a requirement.
      * DELETE /api/v1/standards/{standard}/requirements/{requirement}
      */
-    public function destroy(Standard $standard, EvidenceRequirement $requirement): JsonResponse
+    public function destroy(Request $request, Standard $standard, EvidenceRequirement $requirement): JsonResponse
     {
+        $this->authorizeManage($request, $standard, 'requirements.delete');
+
         if ($requirement->documents()->exists()) {
             return response()->json(['success' => false, 'message' => 'Cannot delete: requirement has documents.'], 422);
         }
@@ -102,5 +108,14 @@ class EvidenceRequirementController extends Controller
         $requirement->delete();
 
         return response()->json(['success' => true, 'message' => 'Requirement deleted.']);
+    }
+
+    /** See StandardController::authorizeManage() for the reasoning. */
+    private function authorizeManage(Request $request, Standard $standard, string $permission): void
+    {
+        $user = $request->user();
+        $viaProgramRole = $standard->program && $user->hasProgramRole($standard->program, 'program-manager');
+
+        abort_unless($user->isPlatformSuperAdmin() || $viaProgramRole || $user->can($permission), 403, 'Forbidden.');
     }
 }

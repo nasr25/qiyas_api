@@ -63,6 +63,8 @@ class StandardController extends Controller
      */
     public function store(Request $request, AssessmentCycle $cycle): JsonResponse
     {
+        $this->authorizeManage($request, $cycle, 'standards.create');
+
         if ($cycle->isReadOnly()) {
             return response()->json(['success' => false, 'message' => 'Cannot add standards to a closed cycle.'], 422);
         }
@@ -110,8 +112,10 @@ class StandardController extends Controller
      * Downloads the .xlsx template for bulk standard import.
      * GET /api/v1/cycles/{cycle}/standards/template
      */
-    public function template(AssessmentCycle $cycle): BinaryFileResponse
+    public function template(Request $request, AssessmentCycle $cycle): BinaryFileResponse
     {
+        $this->authorizeManage($request, $cycle, 'standards.create');
+
         return Excel::download(new StandardsTemplateExport, 'standards-import-template.xlsx');
     }
 
@@ -121,6 +125,8 @@ class StandardController extends Controller
      */
     public function import(Request $request, AssessmentCycle $cycle): JsonResponse
     {
+        $this->authorizeManage($request, $cycle, 'standards.create');
+
         if ($cycle->isReadOnly()) {
             return response()->json(['success' => false, 'message' => 'Cannot import standards into a closed cycle.'], 422);
         }
@@ -222,6 +228,8 @@ class StandardController extends Controller
      */
     public function update(Request $request, AssessmentCycle $cycle, Standard $standard): JsonResponse
     {
+        $this->authorizeManage($request, $cycle, 'standards.edit');
+
         if ($cycle->isReadOnly()) {
             return response()->json(['success' => false, 'message' => 'Cannot edit standards in a closed cycle.'], 422);
         }
@@ -274,8 +282,10 @@ class StandardController extends Controller
      * Deletes a standard from a draft cycle only.
      * DELETE /api/v1/cycles/{cycle}/standards/{standard}
      */
-    public function destroy(AssessmentCycle $cycle, Standard $standard): JsonResponse
+    public function destroy(Request $request, AssessmentCycle $cycle, Standard $standard): JsonResponse
     {
+        $this->authorizeManage($request, $cycle, 'standards.delete');
+
         if ($cycle->status !== 'draft') {
             return response()->json(['success' => false, 'message' => 'Can only delete standards from draft cycles.'], 422);
         }
@@ -284,5 +294,21 @@ class StandardController extends Controller
         $standard->delete();
 
         return response()->json(['success' => true, 'message' => 'Standard deleted.']);
+    }
+
+    /**
+     * A spatie permission alone cannot express "Program Manager of the
+     * cycle's own program" — a Sumoud Program Manager has no matching
+     * platform-wide spatie permission at all, only a program_user_roles
+     * grant. Accept either: the existing spatie permission (unchanged
+     * behavior for every current Qiyas user) OR an active program-manager
+     * role in the cycle's program. See docs/cross-program-role-resolution.md.
+     */
+    private function authorizeManage(Request $request, AssessmentCycle $cycle, string $permission): void
+    {
+        $user = $request->user();
+        $viaProgramRole = $cycle->program && $user->hasProgramRole($cycle->program, 'program-manager');
+
+        abort_unless($user->isPlatformSuperAdmin() || $viaProgramRole || $user->can($permission), 403, 'Forbidden.');
     }
 }

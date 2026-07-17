@@ -30,6 +30,17 @@ class UserResource extends JsonResource
             'locale' => $this->locale,
             'roles' => $this->getRoleNames(),
             'permissions' => $this->getAllPermissions()->pluck('name'),
+            // Program-scoped roles (compliance_program_id + role_key), keyed
+            // by program code — distinct from the platform-wide spatie
+            // `roles` above. A program without its own matching spatie role
+            // (e.g. a Sumoud-only user) is only resolvable through this map;
+            // see docs/cross-program-role-resolution.md.
+            'program_roles' => $this->whenLoaded('programRoles', fn () => $this->programRoles
+                ->where('is_active', true)
+                ->filter(fn ($pr) => $pr->program)
+                ->groupBy(fn ($pr) => $pr->program->code)
+                ->map(fn ($group) => $group->pluck('role_key')->unique()->values())
+            ),
             'last_login_at' => $this->last_login_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
         ];

@@ -43,6 +43,14 @@ class DatabaseSeeder extends Seeder
             // Phase 2: department-manager/employee test accounts for
             // Department B, and workflow demo data covering every status.
             QiyasWorkflowDemoSeeder::class,
+            // Phase 5: Sumoud's own workflow/configuration data (entirely
+            // separate rows from Qiyas's — see docs/cross-program-isolation.md)
+            // plus its test accounts. No official Sumoud content is seeded
+            // here — see SumoudSampleDataSeeder, which is intentionally NOT
+            // called from this production seeding path.
+            SumoudWorkflowDefinitionSeeder::class,
+            SumoudProgramConfigurationSeeder::class,
+            SumoudTestAccountsSeeder::class,
         ]);
     }
 }

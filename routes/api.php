@@ -90,7 +90,12 @@ Route::prefix('v1')->group(function () {
                 Route::get('dashboard', [ProgramDashboardController::class, 'index']);
 
                 Route::get('cycles', [ProgramCycleController::class, 'index']);
+                Route::post('cycles', [ProgramCycleController::class, 'store']);
                 Route::get('cycles/{cycle}', [ProgramCycleController::class, 'show']);
+                Route::put('cycles/{cycle}', [ProgramCycleController::class, 'update']);
+                Route::post('cycles/{cycle}/activate', [ProgramCycleController::class, 'activate']);
+                Route::post('cycles/{cycle}/close', [ProgramCycleController::class, 'close']);
+                Route::post('cycles/{cycle}/archive', [ProgramCycleController::class, 'archive']);
 
                 Route::get('domains', [ProgramTaxonomyController::class, 'domains']);
                 Route::get('categories', [ProgramTaxonomyController::class, 'categories']);
@@ -186,8 +191,16 @@ Route::prefix('v1')->group(function () {
         });
 
         // Departments (read + write both permission-gated; employees lack departments.view)
-        Route::get('departments', [DepartmentController::class, 'index'])->middleware('permission:departments.view');
-        Route::get('departments/{department}', [DepartmentController::class, 'show'])->middleware('permission:departments.view');
+        // Departments are global, shared reference data (see
+        // docs/cross-program-isolation.md, "Shared and Isolated Entities")
+        // — read access is authorized inside the controller for ANY user
+        // with at least one active program membership, not gated behind a
+        // platform-wide spatie permission a program-scoped-only user (e.g.
+        // a Sumoud Program Manager) would never hold. Write actions remain
+        // permission-gated below; they are rare, cross-program, and
+        // deliberately not opened up to every program role.
+        Route::get('departments', [DepartmentController::class, 'index']);
+        Route::get('departments/{department}', [DepartmentController::class, 'show']);
         Route::post('departments', [DepartmentController::class, 'store'])->middleware('permission:departments.create');
         Route::put('departments/{department}', [DepartmentController::class, 'update'])->middleware('permission:departments.edit');
         Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->middleware('permission:departments.delete');
@@ -202,29 +215,35 @@ Route::prefix('v1')->group(function () {
             Route::post('{cycle}/close', [AssessmentCycleController::class, 'close'])->middleware('permission:cycles.close');
             Route::post('{cycle}/archive', [AssessmentCycleController::class, 'archive'])->middleware('permission:cycles.archive');
 
-            // Standards within a cycle
+            // Standards within a cycle. Authorization is checked INSIDE the
+            // controller (StandardController::authorizeManage()), not via
+            // `permission:*` route middleware — a global spatie permission
+            // alone cannot express "Program Manager of the cycle's own
+            // program", which is what a Sumoud (or any non-Qiyas) Program
+            // Manager actually holds. See docs/cross-program-role-resolution.md.
             Route::prefix('{cycle}/standards')->group(function () {
                 Route::get('/', [StandardController::class, 'index']);
                 // Static segments MUST precede the {standard} wildcard.
-                Route::get('template', [StandardController::class, 'template'])->middleware('permission:standards.create');
-                Route::post('import', [StandardController::class, 'import'])->middleware('permission:standards.create');
-                Route::post('/', [StandardController::class, 'store'])->middleware('permission:standards.create');
+                Route::get('template', [StandardController::class, 'template']);
+                Route::post('import', [StandardController::class, 'import']);
+                Route::post('/', [StandardController::class, 'store']);
                 Route::get('{standard}', [StandardController::class, 'show']);
-                Route::put('{standard}', [StandardController::class, 'update'])->middleware('permission:standards.edit');
-                Route::delete('{standard}', [StandardController::class, 'destroy'])->middleware('permission:standards.delete');
+                Route::put('{standard}', [StandardController::class, 'update']);
+                Route::delete('{standard}', [StandardController::class, 'destroy']);
             });
         });
 
         // Single standard by id (not nested under a cycle)
         Route::get('standards/{standard}', [StandardController::class, 'showById']);
 
-        // Evidence Requirements (via standard)
+        // Evidence Requirements (via standard) — see the same
+        // controller-level-authorization note above.
         Route::prefix('standards/{standard}/requirements')->group(function () {
             Route::get('/', [EvidenceRequirementController::class, 'index']);
-            Route::post('/', [EvidenceRequirementController::class, 'store'])->middleware('permission:requirements.create');
+            Route::post('/', [EvidenceRequirementController::class, 'store']);
             Route::get('{requirement}', [EvidenceRequirementController::class, 'show']);
-            Route::put('{requirement}', [EvidenceRequirementController::class, 'update'])->middleware('permission:requirements.edit');
-            Route::delete('{requirement}', [EvidenceRequirementController::class, 'destroy'])->middleware('permission:requirements.delete');
+            Route::put('{requirement}', [EvidenceRequirementController::class, 'update']);
+            Route::delete('{requirement}', [EvidenceRequirementController::class, 'destroy']);
         });
 
         // Documents
