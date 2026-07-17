@@ -1,12 +1,26 @@
-# Qiyas Platform — Backend (Laravel API)
+# Government Compliance Management Platform — Backend (Laravel API)
 
-Enterprise platform for managing and tracking **DGA Qiyas** digital‑government
-compliance: assessment cycles, standards, evidence documents, and the
-review/approval workflow.
+Multi-program government compliance platform. **Qiyas** — DGA digital‑government
+compliance (assessment cycles, standards, evidence documents, review/approval
+workflow) — is the first Compliance Program hosted on the platform; the
+architecture supports adding further programs (Sumoud, ECC, NDMO, ...)
+without another major database or authorization redesign. See
+[`docs/multi-program-architecture.md`](docs/multi-program-architecture.md).
 
 - **Stack:** Laravel 13 (REST API), JWT auth (tymon/jwt-auth), Spatie RBAC, MySQL 8
 - **Frontend:** Vue 3 SPA (separate repo `qiyas_frontend`)
 - **API base:** `/api/v1`
+
+### Multi-program architecture docs
+
+- [`docs/multi-program-architecture.md`](docs/multi-program-architecture.md) — ComplianceProgram model, generic hierarchy, routing, security model
+- [`docs/qiyas-migration-plan.md`](docs/qiyas-migration-plan.md) — how existing Qiyas data was migrated, verification, rollback
+- [`docs/roles-and-scopes.md`](docs/roles-and-scopes.md) — platform vs. program vs. department role matrix, Quick Login accounts
+
+```bash
+php artisan compliance:migrate-qiyas    # (re)map users onto program_user_roles, idempotent
+php artisan compliance:verify-migration # read-only integrity report
+```
 
 ---
 

@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AssessmentCycle;
-use App\Models\Document;
+use App\Models\ComplianceProgram;
 use App\Models\Department;
+use App\Models\Document;
 use App\Models\EvidenceRequirement;
 use App\Models\Standard;
-use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,9 +20,13 @@ class RolePermissionTest extends TestCase
     use RefreshDatabase;
 
     protected Department $deptA;
+
     protected Department $deptB;
+
     protected AssessmentCycle $cycle;
+
     protected Standard $stdA;
+
     protected Standard $stdB;
 
     protected function setUp(): void
@@ -36,9 +40,10 @@ class RolePermissionTest extends TestCase
         $this->deptB = $this->makeDepartment('Dept B');
 
         $this->cycle = AssessmentCycle::create([
+            'compliance_program_id' => ComplianceProgram::where('code', 'QIYAS')->value('id'),
             'name' => 'Cycle 2026', 'year' => 2026,
             'start_date' => '2026-01-01', 'end_date' => '2026-12-31',
-            'status' => 'active', 'created_by' => $admin->id,
+            'status' => 'active', 'is_current' => true, 'created_by' => $admin->id,
         ]);
 
         $this->stdA = $this->makeStandard('A.1');

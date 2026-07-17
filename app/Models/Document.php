@@ -14,7 +14,7 @@ class Document extends Model
     use HasFactory;
 
     protected $fillable = [
-        'requirement_id', 'department_id', 'cycle_id', 'title',
+        'requirement_id', 'department_id', 'cycle_id', 'compliance_program_id', 'title',
         'status', 'current_version',
         'submitted_by', 'submitted_at',
         'reviewed_by', 'reviewed_at',
@@ -25,8 +25,18 @@ class Document extends Model
     {
         return [
             'submitted_at' => 'datetime',
-            'reviewed_at'  => 'datetime',
+            'reviewed_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $document) {
+            if (! $document->compliance_program_id && $document->cycle_id) {
+                $document->compliance_program_id = AssessmentCycle::whereKey($document->cycle_id)
+                    ->value('compliance_program_id');
+            }
+        });
     }
 
     // ─── Relationships ───────────────────────────────────────────────────────
@@ -44,6 +54,11 @@ class Document extends Model
     public function cycle()
     {
         return $this->belongsTo(AssessmentCycle::class, 'cycle_id');
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
     }
 
     public function submitter()
@@ -78,9 +93,28 @@ class Document extends Model
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    public function isDraft(): bool      { return $this->status === 'draft'; }
-    public function isUnderReview(): bool { return $this->status === 'under_review'; }
-    public function isApproved(): bool   { return $this->status === 'approved'; }
-    public function isRejected(): bool   { return $this->status === 'rejected'; }
-    public function isOverdue(): bool    { return $this->status === 'overdue'; }
+    public function isDraft(): bool
+    {
+        return $this->status === 'draft';
+    }
+
+    public function isUnderReview(): bool
+    {
+        return $this->status === 'under_review';
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
+
+    public function isOverdue(): bool
+    {
+        return $this->status === 'overdue';
+    }
 }

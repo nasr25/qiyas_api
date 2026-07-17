@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\ChangePasswordRequest;
+use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use App\Services\AuthService;
+use Database\Seeders\TestUsersSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -22,9 +24,6 @@ class AuthController extends Controller
      * Authenticates a user and returns a JWT token.
      *
      * POST /api/v1/auth/login
-     *
-     * @param LoginRequest $request
-     * @return JsonResponse
      */
     public function login(LoginRequest $request): JsonResponse
     {
@@ -33,7 +32,7 @@ class AuthController extends Controller
             $request->password
         );
 
-        if (!$result) {
+        if (! $result) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.failed'),
@@ -42,11 +41,11 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'token'      => $result['token'],
+            'data' => [
+                'token' => $result['token'],
                 'token_type' => 'bearer',
                 'expires_in' => config('jwt.ttl') * 60,
-                'user'       => new UserResource($result['user']->load('department')),
+                'user' => new UserResource($result['user']->load('department')),
             ],
         ]);
     }
@@ -65,7 +64,7 @@ class AuthController extends Controller
 
         $request->validate(['username' => ['required', 'string']]);
 
-        if (! in_array($request->username, \Database\Seeders\TestUsersSeeder::usernames(), true)) {
+        if (! in_array($request->username, TestUsersSeeder::usernames(), true)) {
             return response()->json(['success' => false, 'message' => 'Not a test account.'], 422);
         }
 
@@ -76,11 +75,11 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'token'      => $result['token'],
+            'data' => [
+                'token' => $result['token'],
                 'token_type' => 'bearer',
                 'expires_in' => config('jwt.ttl') * 60,
-                'user'       => new UserResource($result['user']->load('department')),
+                'user' => new UserResource($result['user']->load('department')),
             ],
         ]);
     }
@@ -103,13 +102,17 @@ class AuthController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $users = \App\Models\User::whereIn('username', \Database\Seeders\TestUsersSeeder::usernames())
-            ->with('department')->orderBy('id')->get()
+        $users = User::whereIn('username', TestUsersSeeder::usernames())
+            ->with(['department', 'programRoles.program'])->orderBy('id')->get()
             ->map(fn ($u) => [
-                'username'   => $u->username,
-                'name'       => $u->name,
-                'role'       => $u->getRoleNames()->first(),
+                'username' => $u->username,
+                'name' => $u->name,
+                'role' => $u->getRoleNames()->first(),
                 'department' => $u->department?->name_ar,
+                'programs' => $u->programRoles->where('is_active', true)->map(fn ($pr) => [
+                    'program' => $pr->program?->code,
+                    'role_key' => $pr->role_key,
+                ])->values(),
             ]);
 
         return response()->json(['success' => true, 'data' => $users]);
@@ -138,8 +141,8 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'token'      => $token,
+            'data' => [
+                'token' => $token,
                 'token_type' => 'bearer',
                 'expires_in' => config('jwt.ttl') * 60,
             ],
@@ -155,7 +158,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => new UserResource($request->user()->load('department')),
+            'data' => new UserResource($request->user()->load('department')),
         ]);
     }
 
@@ -169,7 +172,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (! Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.password_incorrect'),
@@ -177,7 +180,7 @@ class AuthController extends Controller
         }
 
         $user->update([
-            'password'             => $request->new_password,
+            'password' => $request->new_password,
             'must_change_password' => false,
         ]);
 

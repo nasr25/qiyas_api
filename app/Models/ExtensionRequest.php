@@ -14,7 +14,7 @@ class ExtensionRequest extends Model
     use HasFactory;
 
     protected $fillable = [
-        'document_id', 'requested_by', 'requested_date',
+        'document_id', 'compliance_program_id', 'requested_by', 'requested_date',
         'reason', 'status', 'reviewed_by', 'reviewed_at', 'reviewer_notes',
     ];
 
@@ -22,8 +22,18 @@ class ExtensionRequest extends Model
     {
         return [
             'requested_date' => 'date',
-            'reviewed_at'    => 'datetime',
+            'reviewed_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $extensionRequest) {
+            if (! $extensionRequest->compliance_program_id && $extensionRequest->document_id) {
+                $extensionRequest->compliance_program_id = Document::whereKey($extensionRequest->document_id)
+                    ->value('compliance_program_id');
+            }
+        });
     }
 
     // ─── Relationships ───────────────────────────────────────────────────────
@@ -31,6 +41,11 @@ class ExtensionRequest extends Model
     public function document()
     {
         return $this->belongsTo(Document::class);
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
     }
 
     public function requester()
@@ -45,7 +60,18 @@ class ExtensionRequest extends Model
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    public function isPending(): bool  { return $this->status === 'pending'; }
-    public function isApproved(): bool { return $this->status === 'approved'; }
-    public function isRejected(): bool { return $this->status === 'rejected'; }
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
 }
