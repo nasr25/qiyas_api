@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Models\ComplianceProgram;
 use App\Models\EvidenceSubmission;
 use App\Models\Setting;
 use Illuminate\Http\UploadedFile;
 
 /**
- * Configurable evidence file rules (platform-level `evidence_upload`
- * settings group, editable by Super Admin like every other Setting).
+ * Evidence file rules are program-scoped (config category 'evidence') as of
+ * Phase 4 — see docs/evidence-engine.md. The platform-wide `evidence_upload`
+ * Setting group is kept as the fallback when a program has not been given
+ * its own evidence configuration yet, so nothing regresses for a program
+ * created before this category existed.
+ *
  * Validates BOTH the extension and the actual detected MIME type — the
  * legacy Document upload path (see DocumentController) deliberately checks
  * extension only, because Laravel's `mimes:` rule misdetects some Office
@@ -42,8 +47,10 @@ class EvidenceUploadValidator
 
     private const DANGEROUS_EXTENSIONS = ['exe', 'bat', 'cmd', 'sh', 'msi', 'com', 'scr', 'js', 'vbs', 'ps1', 'jar', 'app', 'php', 'phtml'];
 
+    public function __construct(private readonly ProgramConfigurationService $config) {}
+
     /** Returns null if valid, or a user-facing error message (bilingual pair) if not. */
-    public function validateFile(UploadedFile $file): ?array
+    public function validateFile(UploadedFile $file, ?ComplianceProgram $program = null): ?array
     {
         $ext = strtolower($file->getClientOriginalExtension());
         $mime = $file->getMimeType();
@@ -55,7 +62,7 @@ class EvidenceUploadValidator
             return ['ar' => 'تم رفض الملف: نوع محتوى غير آمن.', 'en' => 'File rejected: unsafe content type detected.'];
         }
 
-        $allowed = $this->allowedExtensions();
+        $allowed = $this->allowedExtensions($program);
         if (! in_array($ext, $allowed, true)) {
             return [
                 'ar' => 'نوع الملف غير مدعوم. الأنواع المسموحة: '.implode(', ', $allowed),
@@ -63,11 +70,12 @@ class EvidenceUploadValidator
             ];
         }
 
-        $maxBytes = $this->maxFileSizeMb() * 1024 * 1024;
+        $maxMb = $this->maxFileSizeMb($program);
+        $maxBytes = $maxMb * 1024 * 1024;
         if ($file->getSize() > $maxBytes) {
             return [
-                'ar' => "حجم الملف يتجاوز الحد المسموح ({$this->maxFileSizeMb()} م.ب).",
-                'en' => "File exceeds the maximum size ({$this->maxFileSizeMb()} MB).",
+                'ar' => "حجم الملف يتجاوز الحد المسموح ({$maxMb} م.ب).",
+                'en' => "File exceeds the maximum size ({$maxMb} MB).",
             ];
         }
 
@@ -77,45 +85,62 @@ class EvidenceUploadValidator
     /** Returns null if valid, or a bilingual error if adding this file would violate submission-level limits. */
     public function validateSubmissionLimits(EvidenceSubmission $submission, UploadedFile $newFile): ?array
     {
+        $program = $submission->program;
         $existing = $submission->activeFiles;
-        if ($existing->count() + 1 > $this->maxFilesPerSubmission()) {
+
+        $maxFiles = $this->maxFilesPerSubmission($program);
+        if ($existing->count() + 1 > $maxFiles) {
             return [
-                'ar' => "الحد الأقصى لعدد الملفات هو {$this->maxFilesPerSubmission()}.",
-                'en' => "Maximum {$this->maxFilesPerSubmission()} files per submission.",
+                'ar' => "الحد الأقصى لعدد الملفات هو {$maxFiles}.",
+                'en' => "Maximum {$maxFiles} files per submission.",
             ];
         }
 
         $totalBytes = $existing->sum('file_size') + $newFile->getSize();
-        $maxTotalBytes = $this->maxTotalSubmissionSizeMb() * 1024 * 1024;
+        $maxTotalMb = $this->maxTotalSubmissionSizeMb($program);
+        $maxTotalBytes = $maxTotalMb * 1024 * 1024;
         if ($totalBytes > $maxTotalBytes) {
             return [
-                'ar' => "الحجم الإجمالي للملفات يتجاوز الحد المسموح ({$this->maxTotalSubmissionSizeMb()} م.ب).",
-                'en' => "Total submission size exceeds the maximum ({$this->maxTotalSubmissionSizeMb()} MB).",
+                'ar' => "الحجم الإجمالي للملفات يتجاوز الحد المسموح ({$maxTotalMb} م.ب).",
+                'en' => "Total submission size exceeds the maximum ({$maxTotalMb} MB).",
             ];
         }
 
         return null;
     }
 
-    public function allowedExtensions(): array
+    public function allowedExtensions(?ComplianceProgram $program = null): array
     {
+        if ($program && ($list = $this->programConfig($program)['allowed_extensions'] ?? null)) {
+            return collect($list)->map(fn ($e) => strtolower(trim($e)))->filter()->values()->all();
+        }
+
         $raw = Setting::get('evidence_upload', 'allowed_extensions', self::DEFAULT_EXTENSIONS);
 
         return collect(explode(',', $raw))->map(fn ($e) => trim(strtolower($e)))->filter()->values()->all();
     }
 
-    public function maxFileSizeMb(): int
+    public function maxFileSizeMb(?ComplianceProgram $program = null): int
     {
-        return (int) Setting::get('evidence_upload', 'max_file_size_mb', 20);
+        return (int) ($this->programConfig($program)['max_file_size_mb']
+            ?? Setting::get('evidence_upload', 'max_file_size_mb', 20));
     }
 
-    public function maxFilesPerSubmission(): int
+    public function maxFilesPerSubmission(?ComplianceProgram $program = null): int
     {
-        return (int) Setting::get('evidence_upload', 'max_files_per_submission', 10);
+        return (int) ($this->programConfig($program)['max_files_per_submission']
+            ?? Setting::get('evidence_upload', 'max_files_per_submission', 10));
     }
 
-    public function maxTotalSubmissionSizeMb(): int
+    public function maxTotalSubmissionSizeMb(?ComplianceProgram $program = null): int
     {
-        return (int) Setting::get('evidence_upload', 'max_total_submission_size_mb', 100);
+        return (int) ($this->programConfig($program)['max_total_submission_size_mb']
+            ?? Setting::get('evidence_upload', 'max_total_submission_size_mb', 100));
+    }
+
+    /** Empty array (not the platform default) when no program is given or none is configured yet — callers fall back to Setting themselves. */
+    private function programConfig(?ComplianceProgram $program): array
+    {
+        return $program ? $this->config->get($program, 'evidence', []) : [];
     }
 }

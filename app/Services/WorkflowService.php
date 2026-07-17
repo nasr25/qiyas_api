@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\WorkflowNotificationRequested;
 use App\Exceptions\WorkflowConflictException;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
@@ -18,22 +19,27 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * The single controlled domain service for the Qiyas operational workflow.
- * No controller sets a RequirementAssignment/EvidenceSubmission status
+ * The single controlled domain service for the compliance-program
+ * operational workflow (Qiyas is the only program using it so far). No
+ * controller sets a RequirementAssignment/EvidenceSubmission status
  * directly — every transition goes through here, wrapped in a transaction
  * with row locking, so two conflicting actions can never both succeed.
+ *
+ * As of Phase 4, WHICH stage a submit/approve/reject action moves a
+ * submission to is read from the program's workflow_transition_definitions
+ * (via WorkflowDefinitionRepository) instead of a hardcoded PHP map — see
+ * docs/workflow-engine.md. STATUS_FOR_STAGE below is NOT a business rule:
+ * it is the fixed mapping from a review stage to the corresponding
+ * evidence_submissions.status enum value, which today only has values for
+ * Qiyas's exact three reviewer stages. A future program with a
+ * differently-shaped reviewer sequence would need that enum extended —
+ * see docs/compliance-engine-known-issues.md, this is documented as
+ * deferred technical debt, not solved by this map being "configurable."
  *
  * See docs/qiyas-workflow.md for the full state diagram.
  */
 class WorkflowService
 {
-    /** Stage this stage's approval moves the submission to next; null = final approval. */
-    private const NEXT_STAGE = [
-        'department_manager' => 'auditor',
-        'auditor' => 'program_manager',
-        'program_manager' => null,
-    ];
-
     private const STATUS_FOR_STAGE = [
         'department_manager' => 'pending_department_manager',
         'auditor' => 'pending_auditor',
@@ -42,7 +48,7 @@ class WorkflowService
 
     public function __construct(
         private readonly SlaService $sla,
-        private readonly NotificationService $notifications,
+        private readonly WorkflowDefinitionRepository $workflowDefinitions,
     ) {}
 
     // ─── Program Manager: assignment ───────────────────────────────────────
@@ -289,19 +295,26 @@ class WorkflowService
 
             $assignment = RequirementAssignment::whereKey($submission->requirement_assignment_id)->lockForUpdate()->firstOrFail();
 
+            $nextStage = $this->workflowDefinitions->nextStage($submission->program, 'employee', 'submit');
+            if (! $nextStage) {
+                throw new WorkflowConflictException('No submit transition is configured for this program\'s workflow.');
+            }
+            $nextStatus = self::STATUS_FOR_STAGE[$nextStage]
+                ?? throw new WorkflowConflictException("Configured next stage '{$nextStage}' has no known submission status.");
+
             $oldStatus = $submission->status;
             $submission->update([
-                'status' => 'pending_department_manager',
-                'current_stage' => 'department_manager',
+                'status' => $nextStatus,
+                'current_stage' => $nextStage,
                 'employee_comment' => $comment,
                 'submitted_at' => now(),
                 'returned_at' => null,
             ]);
 
             $this->sla->closeActiveInstance($assignment, 'employee');
-            $this->sla->openInstance($assignment, $submission, 'department_manager', null, $assignment->department);
+            $this->sla->openInstance($assignment, $submission, $nextStage, null, $assignment->department);
 
-            $this->recordEvent($assignment, $oldStatus === 'returned_for_revision' ? 'resubmitted' : 'submitted_to_department_manager', $employee, 'employee', $oldStatus, 'pending_department_manager', null, null, $submission);
+            $this->recordEvent($assignment, $oldStatus === 'returned_for_revision' ? 'resubmitted' : 'submitted_to_department_manager', $employee, 'employee', $oldStatus, $nextStatus, null, null, $submission);
             $this->notify($assignment, 'submission_sent_to_department_manager', $this->departmentManagerRecipients($assignment));
 
             return $submission->fresh();
@@ -353,15 +366,21 @@ class WorkflowService
             ]);
 
             $oldStatus = $submission->status;
+            $program = $submission->program;
 
             if ($decision === 'rejected') {
+                $returnStage = $this->workflowDefinitions->nextStage($program, $stage, 'reject');
+                if (! $returnStage) {
+                    throw new WorkflowConflictException("No reject transition is configured for stage '{$stage}' in this program's workflow.");
+                }
+
                 $submission->update([
                     'status' => 'returned_for_revision',
-                    'current_stage' => 'employee',
+                    'current_stage' => $returnStage,
                     'returned_at' => now(),
                 ]);
                 $this->sla->closeActiveInstance($assignment, $stage);
-                $this->sla->openInstance($assignment, $submission, 'employee', $assignment->employee, $assignment->department);
+                $this->sla->openInstance($assignment, $submission, $returnStage, $assignment->employee, $assignment->department);
 
                 $this->recordEvent($assignment, "{$this->eventStageLabel($stage)}_rejected", $reviewer, $reviewerRole, $oldStatus, 'returned_for_revision', $rejectionReason, null, $submission);
                 $this->notify($assignment, "{$stage}_rejected", $this->employeeRecipients($assignment));
@@ -369,10 +388,14 @@ class WorkflowService
                 return $submission->fresh();
             }
 
-            $nextStage = self::NEXT_STAGE[$stage];
+            $nextStage = $this->workflowDefinitions->nextStage($program, $stage, 'approve');
+            if (! $nextStage) {
+                throw new WorkflowConflictException("No approve transition is configured for stage '{$stage}' in this program's workflow.");
+            }
+            $nextStageDefinition = $this->workflowDefinitions->stage($program, $nextStage);
             $this->sla->closeActiveInstance($assignment, $stage);
 
-            if ($nextStage === null) {
+            if ($nextStageDefinition['is_final'] ?? false) {
                 // Final approval.
                 $submission->update([
                     'status' => 'approved',
@@ -388,10 +411,11 @@ class WorkflowService
                 return $submission->fresh();
             }
 
-            $nextStatus = self::STATUS_FOR_STAGE[$nextStage];
+            $nextStatus = self::STATUS_FOR_STAGE[$nextStage]
+                ?? throw new WorkflowConflictException("Configured next stage '{$nextStage}' has no known submission status.");
             $submission->update(['status' => $nextStatus, 'current_stage' => $nextStage]);
 
-            $responsibleUser = $nextStage === 'department_manager' ? null : null; // resolved per-department/program at review time, not a single fixed user
+            $responsibleUser = null; // resolved per-department/program at review time, not a single fixed user
             $this->sla->openInstance($assignment, $submission, $nextStage, $responsibleUser, $assignment->department);
 
             $this->recordEvent($assignment, "{$this->eventStageLabel($stage)}_approved", $reviewer, $reviewerRole, $oldStatus, $nextStatus, $notes, null, $submission);
@@ -460,9 +484,16 @@ class WorkflowService
     }
 
     /** Queues a deduplicated notification for each recipient — see NotificationService. */
+    /**
+     * Publishes a domain event rather than calling NotificationService
+     * directly — see docs/notification-engine.md. SendWorkflowNotification
+     * (app/Listeners) is the only subscriber; recipients are resolved here
+     * (this method already has the department/program/role context needed
+     * to find them) and carried in the event payload.
+     */
     private function notify(RequirementAssignment $assignment, string $eventType, iterable $recipients): void
     {
-        $this->notifications->dispatchForAssignment($eventType, $assignment, array_filter($recipients));
+        event(new WorkflowNotificationRequested($eventType, $assignment, array_filter((array) $recipients)));
     }
 
     private function assignmentRecipients(RequirementAssignment $assignment): array

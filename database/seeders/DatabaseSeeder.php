@@ -32,6 +32,14 @@ class DatabaseSeeder extends Seeder
             ProgramMembershipSeeder::class,
             // Phase 2: default bilingual notification templates.
             EmailTemplatesSeeder::class,
+            // Phase 4: Qiyas's workflow and program-configuration values,
+            // represented as engine data instead of hardcoded PHP — see
+            // docs/qiyas-engine-configuration.md. Must run BEFORE
+            // QiyasWorkflowDemoSeeder, which drives real submissions through
+            // WorkflowService — and as of Phase 4, WorkflowService reads
+            // stage transitions from these seeded rows, not a PHP constant.
+            QiyasWorkflowDefinitionSeeder::class,
+            QiyasProgramConfigurationSeeder::class,
             // Phase 2: department-manager/employee test accounts for
             // Department B, and workflow demo data covering every status.
             QiyasWorkflowDemoSeeder::class,

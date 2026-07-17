@@ -4,13 +4,20 @@ namespace App\Policies;
 
 use App\Models\ExtensionRequest;
 use App\Models\User;
+use App\Services\ProgramConfigurationService;
 
 /**
- * The Department Manager never decides an extension request (Phase 2
- * requirement) — only `view` is granted to them, never `decide`.
+ * WHO decides an extension request is program-configurable (category
+ * 'extensions', key 'reviewer_role') as of Phase 4 — see
+ * docs/extension-engine.md. For Qiyas that role is 'auditor', so the
+ * Department Manager still never decides one (Phase 2 requirement,
+ * unchanged) — but the rule now comes from configuration, not a literal
+ * string in this class.
  */
 class ExtensionRequestPolicy
 {
+    public function __construct(private readonly ProgramConfigurationService $config) {}
+
     public function view(User $user, ExtensionRequest $extensionRequest): bool
     {
         if ($user->isPlatformSuperAdmin() || $user->isPlatformExecutiveViewer()) {
@@ -40,6 +47,13 @@ class ExtensionRequestPolicy
             return true;
         }
 
-        return $extensionRequest->program && $user->hasProgramRole($extensionRequest->program, 'auditor');
+        $program = $extensionRequest->program;
+        if (! $program) {
+            return false;
+        }
+
+        $reviewerRole = $this->config->get($program, 'extensions', ['reviewer_role' => 'auditor'])['reviewer_role'] ?? 'auditor';
+
+        return $user->hasProgramRole($program, $reviewerRole);
     }
 }

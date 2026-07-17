@@ -11,6 +11,7 @@ use App\Models\RequirementAssignment;
 use App\Models\SlaInstance;
 use App\Models\Standard;
 use App\Models\WorkflowEvent;
+use App\Services\DashboardMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +20,14 @@ use Illuminate\Support\Facades\DB;
  * One dashboard endpoint per role — see docs/qiyas-workflow.md. Each method
  * enforces its own scoping (department for Department Manager/Employee,
  * program-wide for Program Manager/Auditor) independently of the generic
- * program-access check already applied by EnsureProgramAccess.
+ * program-access check already applied by EnsureProgramAccess. The shared
+ * count-builders a future program's dashboard would also need live in
+ * DashboardMetricsService — see docs/dashboard-reporting-engine.md.
  */
 class WorkflowDashboardController extends Controller
 {
+    public function __construct(private readonly DashboardMetricsService $metrics) {}
+
     /** GET /api/v1/programs/{program}/dashboards/program-manager */
     public function programManager(Request $request): JsonResponse
     {
@@ -30,16 +35,14 @@ class WorkflowDashboardController extends Controller
         $this->authorize($request, fn ($u) => $u->isPlatformSuperAdmin() || $u->hasProgramRole($program, 'program-manager'));
 
         $totalRequirements = Standard::where('compliance_program_id', $program->id)->count();
-        $assignedIds = RequirementAssignment::forProgram($program)->active()->pluck('requirement_id');
-        $statusCounts = $this->statusCounts($program);
+        $assignedCount = $this->metrics->assignedRequirementIds($program)->count();
 
         return response()->json(['success' => true, 'data' => [
             'total_requirements' => $totalRequirements,
-            'assigned_requirements' => $assignedIds->count(),
-            'unassigned_requirements' => max(0, $totalRequirements - $assignedIds->count()),
-            'status_counts' => $statusCounts,
-            'overdue' => RequirementAssignment::forProgram($program)->active()
-                ->whereDate('effective_due_date', '<', now()->toDateString())->count(),
+            'assigned_requirements' => $assignedCount,
+            'unassigned_requirements' => max(0, $totalRequirements - $assignedCount),
+            'status_counts' => $this->metrics->submissionStatusCounts($program),
+            'overdue' => $this->metrics->overdueAssignmentCount($program),
             'extension_requests' => [
                 'active' => ExtensionRequest::where('compliance_program_id', $program->id)->pending()->count(),
                 'approved' => ExtensionRequest::where('compliance_program_id', $program->id)->where('status', 'approved')->count(),
@@ -49,8 +52,7 @@ class WorkflowDashboardController extends Controller
                 'breaches' => SlaInstance::where('compliance_program_id', $program->id)->where('status', 'breached')->count(),
             ],
             'department_comparison' => $this->departmentComparison($program),
-            'upcoming_deadlines' => RequirementAssignment::forProgram($program)->active()
-                ->whereBetween('effective_due_date', [now()->toDateString(), now()->addDays(14)->toDateString()])->count(),
+            'upcoming_deadlines' => $this->metrics->upcomingDeadlineCount($program),
         ]]);
     }
 
@@ -139,14 +141,6 @@ class WorkflowDashboardController extends Controller
             'upcoming_deadlines' => $assignments->filter(fn ($a) => $a->effective_due_date && $a->effective_due_date->between(now(), now()->addDays(14)))->count(),
             'extension_requests' => ExtensionRequest::whereIn('requirement_assignment_id', $assignments->pluck('id'))->where('requested_by', $user->id)->count(),
         ]]);
-    }
-
-    private function statusCounts(ComplianceProgram $program): array
-    {
-        $counts = EvidenceSubmission::where('compliance_program_id', $program->id)
-            ->selectRaw('status, count(*) as count')->groupBy('status')->pluck('count', 'status');
-
-        return collect(EvidenceSubmission::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all();
     }
 
     private function departmentComparison(ComplianceProgram $program): array

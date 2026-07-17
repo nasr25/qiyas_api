@@ -13,6 +13,14 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Column headers are stable machine identifiers (never translated) — the
  * bilingual Qiyas-terminology explanation of each column lives on the
  * Instructions sheet. See docs/qiyas-xlsx-import.md.
+ *
+ * As of Phase 4, the column list is normally resolved from program
+ * configuration (category 'import', see
+ * QiyasRequirementsTemplateExport::resolveColumns() and
+ * docs/import-export-engine.md) rather than read directly from COLUMNS —
+ * the constant below is kept only as the fallback default so this class
+ * still works standalone (e.g. in code that constructs it directly without
+ * going through the exporter) and so existing tests need no changes.
  */
 class RequirementsSheet implements FromArray, WithColumnWidths, WithHeadings, WithStyles, WithTitle
 {
@@ -22,6 +30,8 @@ class RequirementsSheet implements FromArray, WithColumnWidths, WithHeadings, Wi
         'weight', 'due_date',
     ];
 
+    public function __construct(private readonly ?array $columns = null) {}
+
     public function title(): string
     {
         return 'Requirements';
@@ -29,7 +39,7 @@ class RequirementsSheet implements FromArray, WithColumnWidths, WithHeadings, Wi
 
     public function headings(): array
     {
-        return self::COLUMNS;
+        return $this->columns ?? self::COLUMNS;
     }
 
     public function array(): array

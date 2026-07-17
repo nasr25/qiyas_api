@@ -33,7 +33,13 @@ class ProgramRequirementController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $requirements->through(fn (Standard $s) => [
+            // NEVER assign a paginator's ->through()/map() result directly to
+            // a nested JSON key — Laravel serializes the paginator itself
+            // (current_page/data/last_page/...) as the value, not a flat
+            // array, breaking any frontend consumer expecting a plain list.
+            // See docs/qiyas-workflow.md §6 for the same defect class fixed
+            // elsewhere in Phase 2/3; this controller was missed then.
+            'data' => $requirements->getCollection()->map(fn (Standard $s) => [
                 'id' => $s->id,
                 'number' => $s->standard_number,
                 'name' => $s->name,
@@ -45,7 +51,7 @@ class ProgramRequirementController extends Controller
                 'weight' => $s->weight,
                 'due_date' => $s->due_date?->toDateString(),
                 'is_active' => $s->is_active,
-            ]),
+            ])->values(),
             'meta' => [
                 'current_page' => $requirements->currentPage(),
                 'last_page' => $requirements->lastPage(),

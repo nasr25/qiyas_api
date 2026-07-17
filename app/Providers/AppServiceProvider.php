@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Events\WorkflowNotificationRequested;
 use App\Listeners\LogEmailSending;
 use App\Listeners\LogEmailSent;
+use App\Listeners\SendWorkflowNotification;
 use App\Models\Document;
 use App\Models\EmailLog;
 use App\Models\Setting;
@@ -53,6 +55,10 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(MessageSending::class, LogEmailSending::class);
         Event::listen(MessageSent::class, LogEmailSent::class);
 
+        // Workflow/extension services publish this event instead of calling
+        // NotificationService directly — see docs/notification-engine.md.
+        Event::listen(WorkflowNotificationRequested::class, SendWorkflowNotification::class);
+
         // A failed queued mail job marks the most recent pending email failed.
         Queue::failing(function ($event) {
             try {
@@ -75,13 +81,23 @@ class AppServiceProvider extends ServiceProvider
      * distributed brute force against many accounts from one IP is caught
      * without punishing a shared-NAT office trying one account too many
      * times. Applied via `throttle:login` in routes/api.php.
+     *
+     * The per-minute limit is configurable (LOGIN_RATE_LIMIT_PER_MINUTE,
+     * default 10) rather than hardcoded — an automated E2E suite driving
+     * Quick Login dozens of times per minute for the same handful of test
+     * accounts (see docs/playwright-e2e-guide.md) legitimately needs a
+     * higher ceiling than a production login form does. The E2E backend
+     * sets a higher value explicitly; production is unaffected and keeps
+     * the same default of 10 as before this became configurable.
      */
     private function configureRateLimiting(): void
     {
-        RateLimiter::for('login', function (Request $request) {
+        $perMinute = (int) env('LOGIN_RATE_LIMIT_PER_MINUTE', 10);
+
+        RateLimiter::for('login', function (Request $request) use ($perMinute) {
             $key = strtolower((string) $request->input('username')).'|'.$request->ip();
 
-            return Limit::perMinute(10)->by($key);
+            return Limit::perMinute($perMinute)->by($key);
         });
     }
 

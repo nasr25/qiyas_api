@@ -103,7 +103,7 @@ class EvidenceSubmissionController extends Controller
         $file = $request->file('file');
         $locale = app()->getLocale();
 
-        if ($error = $this->uploadValidator->validateFile($file)) {
+        if ($error = $this->uploadValidator->validateFile($file, $this->program($request))) {
             return response()->json(['success' => false, 'message' => $error[$locale] ?? $error['en']], 422);
         }
         if ($error = $this->uploadValidator->validateSubmissionLimits($model, $file)) {

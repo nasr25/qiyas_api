@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\AssessmentCycle;
 use App\Models\AuditLog;
+use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentVersion;
@@ -52,13 +53,25 @@ class DemoDataSeeder extends Seeder
 
     private function ensureActiveCycle(?User $admin): AssessmentCycle
     {
+        // compliance_program_id is NOT NULL (see
+        // 2026_07_17_000003_add_program_fields_to_assessment_cycles_table) —
+        // the QIYAS ComplianceProgram row always exists by this point (it is
+        // seeded by the create_compliance_programs_table migration itself,
+        // not a seeder), but a genuinely fresh `migrate --seed` run failed
+        // here before this fix because the value was never actually
+        // supplied, only working by accident on the long-lived dev database
+        // where a one-off backfill had already patched existing rows.
+        $qiyas = ComplianceProgram::where('code', 'QIYAS')->firstOrFail();
+
         return AssessmentCycle::firstOrCreate(
             ['name' => 'الدورة التجريبية 2026'],
             [
+                'compliance_program_id' => $qiyas->id,
                 'year' => (int) now()->year,
                 'start_date' => now()->startOfYear()->toDateString(),
                 'end_date' => now()->endOfYear()->toDateString(),
                 'status' => 'active',
+                'is_current' => true,
                 'activated_at' => now(),
                 'created_by' => $admin?->id,
             ],
@@ -84,6 +97,10 @@ class DemoDataSeeder extends Seeder
             $standard = Standard::updateOrCreate(
                 ['cycle_id' => $cycle->id, 'standard_number' => '1.'.($i + 1)],
                 [
+                    // See the comment in ensureActiveCycle() — this column
+                    // is also NOT NULL with no default and must be set
+                    // explicitly for a fresh database.
+                    'compliance_program_id' => $cycle->compliance_program_id,
                     'name_ar' => $ar,
                     'name_en' => $en,
                     'description' => "هدف المعيار: تحقيق {$ar} وفق أفضل الممارسات.",
@@ -136,6 +153,9 @@ class DemoDataSeeder extends Seeder
                     $doc = Document::firstOrCreate(
                         ['requirement_id' => $req->id, 'department_id' => $dept->id, 'cycle_id' => $cycle->id],
                         [
+                            // Same NOT-NULL-with-no-default column as
+                            // Standard/AssessmentCycle above.
+                            'compliance_program_id' => $cycle->compliance_program_id,
                             'title' => "{$standard->name_ar} — {$req->title_ar}",
                             'status' => $status,
                             'current_version' => $status === 'draft' ? 0 : 1,
@@ -178,6 +198,10 @@ class DemoDataSeeder extends Seeder
             }
             ExtensionRequest::create([
                 'document_id' => $doc->id,
+                // Set explicitly rather than relying solely on the model's
+                // creating-hook derivation — see the compliance_program_id
+                // comments earlier in this seeder.
+                'compliance_program_id' => $doc->compliance_program_id,
                 'requested_by' => $requester,
                 'requested_date' => now()->addDays(14)->toDateString(),
                 'reason' => 'نحتاج وقتًا إضافيًا لاستكمال جمع المستندات المطلوبة.',

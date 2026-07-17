@@ -12,6 +12,7 @@ use App\Services\AuditService;
 use App\Services\NotificationService;
 use App\Services\SlaService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Scheduled (see routes/console.php): detects SLA warnings/breaches and
@@ -77,13 +78,17 @@ class ProcessSlaCommand extends Command
                 foreach ($assignments as $assignment) {
                     $this->recordEvent($assignment, 'requirement_became_overdue', isAssignmentEvent: true);
                     $recipients = array_filter([$assignment->employee] + $assignment->department->users()->where('is_active', true)->get()->all());
-                    $notifications->dispatchOnce(
-                        'requirement_overdue',
-                        "requirement_overdue:assignment:{$assignment->id}:day:".now()->toDateString(),
-                        $recipients[0] ?? $assignment->assignedBy,
-                        $assignment->program,
-                        new WorkflowEventNotification('requirement_overdue', $assignment),
-                    );
+                    try {
+                        $notifications->dispatchOnce(
+                            'requirement_overdue',
+                            "requirement_overdue:assignment:{$assignment->id}:day:".now()->toDateString(),
+                            $recipients[0] ?? $assignment->assignedBy,
+                            $assignment->program,
+                            new WorkflowEventNotification('requirement_overdue', $assignment),
+                        );
+                    } catch (\Throwable $e) {
+                        Log::error("Overdue notification dispatch failed for assignment #{$assignment->id}: {$e->getMessage()}");
+                    }
                     $overdue++;
                 }
             });
@@ -123,12 +128,20 @@ class ProcessSlaCommand extends Command
             ? "{$eventType}:instance:{$instance->id}"
             : "{$eventType}:instance:{$instance->id}:".now()->toDateString();
 
-        $notifications->dispatchOnce(
-            $eventType,
-            $key,
-            $recipient,
-            $assignment->program,
-            new WorkflowEventNotification($eventType, $assignment),
-        );
+        // A single bad recipient/mailer failure must not abort the whole
+        // scheduled run — every other instance in this batch still needs
+        // its breach/warning/overdue state detected and recorded. See the
+        // matching resilience note on SendWorkflowNotification.
+        try {
+            $notifications->dispatchOnce(
+                $eventType,
+                $key,
+                $recipient,
+                $assignment->program,
+                new WorkflowEventNotification($eventType, $assignment),
+            );
+        } catch (\Throwable $e) {
+            Log::error("SLA notification dispatch failed for event '{$eventType}' on instance #{$instance->id}: {$e->getMessage()}");
+        }
     }
 }

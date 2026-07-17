@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\WorkflowNotificationRequested;
 use App\Exceptions\WorkflowConflictException;
 use App\Models\ExtensionRequest;
 use App\Models\RequirementAssignment;
@@ -10,15 +11,18 @@ use App\Models\WorkflowEvent;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Extension requests go directly to the Auditor — the Department Manager
- * never decides one (Phase 2 requirement). Approving an extension updates
- * `effective_due_date` only; `original_due_date` is never touched, so
- * historical delay calculations stay accurate. See
+ * The reviewer role (who decides an extension request) is program-scoped
+ * configuration as of Phase 4 (category 'extensions', key 'reviewer_role')
+ * — see docs/extension-engine.md and ExtensionRequestPolicy::decide(). For
+ * Qiyas that role is 'auditor', so the Department Manager still never
+ * decides one (Phase 2 requirement, unchanged); approving an extension
+ * updates `effective_due_date` only, `original_due_date` is never touched,
+ * so historical delay calculations stay accurate. See
  * docs/extension-request-workflow.md.
  */
 class ExtensionService
 {
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(private readonly ProgramConfigurationService $config) {}
 
     public function request(RequirementAssignment $assignment, User $employee, string $requestedDueDate, string $reason): ExtensionRequest
     {
@@ -48,7 +52,7 @@ class ExtensionService
             ]);
 
             $this->recordEvent($assignment, 'extension_requested', $employee, 'employee', $reason);
-            $this->notifications->dispatchForAssignment('extension_requested', $assignment, $this->auditorsAndManager($assignment));
+            $this->notify('extension_requested', $assignment, $this->reviewersAndManager($assignment));
 
             return $extension;
         });
@@ -81,7 +85,7 @@ class ExtensionService
 
             if ($assignment) {
                 $this->recordEvent($assignment, $decision === 'approved' ? 'extension_approved' : 'extension_rejected', $auditor, 'auditor', $notes ?? $reason);
-                $this->notifications->dispatchForAssignment(
+                $this->notify(
                     $decision === 'approved' ? 'extension_approved' : 'extension_rejected',
                     $assignment,
                     array_filter([$extension->requester, $assignment->department?->users()->where('is_active', true)->first()]),
@@ -125,11 +129,19 @@ class ExtensionService
         AuditService::log("workflow.{$eventType}", $notes ?? $eventType, $assignment, complianceProgramId: $assignment->compliance_program_id);
     }
 
-    private function auditorsAndManager(RequirementAssignment $assignment): array
+    /** Publishes a domain event rather than calling NotificationService directly — see docs/notification-engine.md. */
+    private function notify(string $eventType, RequirementAssignment $assignment, array $recipients): void
     {
-        $auditors = User::whereHas('programRoles', fn ($q) => $q
+        event(new WorkflowNotificationRequested($eventType, $assignment, array_filter($recipients)));
+    }
+
+    private function reviewersAndManager(RequirementAssignment $assignment): array
+    {
+        $reviewerRole = $this->config->get($assignment->program, 'extensions', ['reviewer_role' => 'auditor'])['reviewer_role'] ?? 'auditor';
+
+        $reviewers = User::whereHas('programRoles', fn ($q) => $q
             ->where('compliance_program_id', $assignment->compliance_program_id)
-            ->where('role_key', 'auditor')->where('is_active', true))
+            ->where('role_key', $reviewerRole)->where('is_active', true))
             ->where('is_active', true)->get()->all();
 
         $manager = User::whereHas('programRoles', fn ($q) => $q
@@ -138,6 +150,6 @@ class ExtensionService
             ->where('department_id', $assignment->department_id)->where('is_active', true))
             ->where('is_active', true)->get()->all();
 
-        return array_merge($auditors, $manager);
+        return array_merge($reviewers, $manager);
     }
 }

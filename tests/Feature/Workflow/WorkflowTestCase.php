@@ -9,6 +9,8 @@ use App\Models\ProgramUserRole;
 use App\Models\Standard;
 use App\Models\User;
 use Database\Seeders\EmailTemplatesSeeder;
+use Database\Seeders\QiyasProgramConfigurationSeeder;
+use Database\Seeders\QiyasWorkflowDefinitionSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -55,6 +57,8 @@ abstract class WorkflowTestCase extends TestCase
         $this->seed(EmailTemplatesSeeder::class);
 
         $this->qiyas = ComplianceProgram::where('code', 'QIYAS')->firstOrFail();
+        $this->seed(QiyasWorkflowDefinitionSeeder::class);
+        $this->seed(QiyasProgramConfigurationSeeder::class);
         $this->otherProgram = ComplianceProgram::create([
             'code' => 'OTHER', 'name_ar' => 'برنامج آخر', 'name_en' => 'Other Program',
             'status' => 'active', 'is_active' => true,

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceProgram;
 use App\Models\Standard;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -41,9 +42,14 @@ class StandardsCatalogSeeder extends Seeder
             return;
         }
 
+        // compliance_program_id is NOT NULL with no default — see the
+        // matching comment in DemoDataSeeder::ensureActiveCycle().
+        $qiyas = ComplianceProgram::where('code', 'QIYAS')->firstOrFail();
+
         $cycle = AssessmentCycle::firstOrCreate(
             ['name' => 'معايير قياس للتحول الرقمي (مستوردة)'],
             [
+                'compliance_program_id' => $qiyas->id,
                 'year' => (int) now()->year,
                 'start_date' => now()->startOfYear()->toDateString(),
                 'end_date' => now()->endOfYear()->toDateString(),
@@ -62,6 +68,7 @@ class StandardsCatalogSeeder extends Seeder
             Standard::updateOrCreate(
                 ['cycle_id' => $cycle->id, 'standard_number' => $number],
                 [
+                    'compliance_program_id' => $qiyas->id,
                     'perspective' => $r['perspective'] ?? null,
                     'axis' => $r['axis'] ?? null,
                     'name_ar' => $r['name_ar'] ?? $number,

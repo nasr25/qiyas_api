@@ -22,6 +22,7 @@ class MetadataSheet implements FromArray, WithTitle
     public function __construct(
         private readonly string $programCode,
         private readonly ?int $cycleId,
+        private readonly ?array $columnIdentifiers = null,
     ) {}
 
     public function title(): string
@@ -38,7 +39,7 @@ class MetadataSheet implements FromArray, WithTitle
             ['schema_version', RequirementsSheet::class],
             ['export_date', now()->toIso8601String()],
             ['cycle_id', (string) ($this->cycleId ?? '')],
-            ['column_identifiers', implode(',', RequirementsSheet::COLUMNS)],
+            ['column_identifiers', implode(',', $this->columnIdentifiers ?? RequirementsSheet::COLUMNS)],
         ];
     }
 }

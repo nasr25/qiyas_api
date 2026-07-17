@@ -6,9 +6,11 @@ use App\Exceptions\WorkflowConflictException;
 use App\Models\ComplianceProgram;
 use App\Models\ExtensionRequest;
 use App\Services\ExtensionService;
+use App\Services\ProgramConfigurationService;
 use App\Services\WorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class AuditorReviewController extends ReviewQueueController
 {
@@ -40,11 +42,19 @@ class AuditorReviewController extends ReviewQueueController
         return $query;
     }
 
-    /** GET /api/v1/programs/{program}/reviews/auditor/extension-requests */
+    /**
+     * GET /api/v1/programs/{program}/reviews/auditor/extension-requests
+     *
+     * The URL path is fixed to "auditor" (this is Qiyas's own review-queue
+     * naming), but the actual access check below reads the configured
+     * extension reviewer role rather than hardcoding it — see
+     * docs/compliance-engine-known-issues.md for why the route path itself
+     * is not yet program-configurable.
+     */
     public function extensionRequests(Request $request): JsonResponse
     {
         $program = $this->program($request);
-        if (! $request->user()->isPlatformSuperAdmin() && ! $request->user()->hasProgramRole($program, 'auditor')) {
+        if (! $request->user()->isPlatformSuperAdmin() && ! $this->isConfiguredExtensionReviewer($request, $program)) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -52,7 +62,7 @@ class AuditorReviewController extends ReviewQueueController
             ->whereNotNull('requirement_assignment_id')
             ->with(['requester', 'reviewer', 'assignment.requirement', 'assignment.department'])
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
-            ->latest('requested_at')
+            ->latest('requested_date')
             ->paginate($request->get('per_page', 20));
 
         return response()->json([
@@ -86,13 +96,17 @@ class AuditorReviewController extends ReviewQueueController
     private function decideExtension(Request $request, int|string $id, string $decision): JsonResponse
     {
         $program = $this->program($request);
-        if (! $request->user()->isPlatformSuperAdmin() && ! $request->user()->hasProgramRole($program, 'auditor')) {
-            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
-        }
 
         $model = ExtensionRequest::where('id', $id)->where('compliance_program_id', $program->id)->first();
         if (! $model) {
             return response()->json(['success' => false, 'message' => 'Extension request not found.'], 404);
+        }
+
+        // The real, program-configurable authorization check (see
+        // ExtensionRequestPolicy::decide() and program config category
+        // 'extensions'.'reviewer_role') — not a hardcoded role literal.
+        if (Gate::forUser($request->user())->denies('decide', $model)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
         $rules = ['notes' => ['nullable', 'string', 'max:2000']];
@@ -108,5 +122,12 @@ class AuditorReviewController extends ReviewQueueController
         }
 
         return response()->json(['success' => true, 'data' => ['id' => $updated->id, 'status' => $updated->status]]);
+    }
+
+    private function isConfiguredExtensionReviewer(Request $request, ComplianceProgram $program): bool
+    {
+        $config = app(ProgramConfigurationService::class)->get($program, 'extensions', ['reviewer_role' => 'auditor']);
+
+        return $request->user()->hasProgramRole($program, $config['reviewer_role'] ?? 'auditor');
     }
 }
