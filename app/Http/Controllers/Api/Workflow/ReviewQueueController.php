@@ -27,10 +27,18 @@ abstract class ReviewQueueController extends Controller
 
     abstract protected function roleLabel(): string;
 
+    /** Whether the caller may view this stage's queue at all (role-level, not tied to one submission). */
+    abstract protected function authorizeQueueAccess(Request $request, ComplianceProgram $program): bool;
+
     /** GET .../reviews/{stage} */
     public function index(Request $request): JsonResponse
     {
         $program = $this->program($request);
+
+        if (! $this->authorizeQueueAccess($request, $program)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
         $status = 'pending_'.$this->stage();
 
         $query = EvidenceSubmission::where('compliance_program_id', $program->id)

@@ -42,6 +42,11 @@ class AuditorReviewController extends ReviewQueueController
         return $query;
     }
 
+    protected function authorizeQueueAccess(Request $request, ComplianceProgram $program): bool
+    {
+        return $request->user()->isPlatformSuperAdmin() || $request->user()->hasProgramRole($program, 'auditor');
+    }
+
     /**
      * GET /api/v1/programs/{program}/reviews/auditor/extension-requests
      *

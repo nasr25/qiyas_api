@@ -31,4 +31,9 @@ class DepartmentManagerReviewController extends ReviewQueueController
 
         return $query;
     }
+
+    protected function authorizeQueueAccess(Request $request, ComplianceProgram $program): bool
+    {
+        return $request->user()->isPlatformSuperAdmin() || $request->user()->managedDepartmentId($program) !== null;
+    }
 }
