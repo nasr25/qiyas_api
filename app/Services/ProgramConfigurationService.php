@@ -138,6 +138,21 @@ class ProgramConfigurationService
             'features' => [
                 '*' => ['boolean'],
             ],
+            // Phase 6: describes the program's own hierarchy depth/shape —
+            // read by ComplianceNodeService to validate parent/child type
+            // pairs and maximum depth. Qiyas/Sumoud never set this category
+            // (they use the free-text perspective/axis fields on Standard
+            // instead); only a program using the generic ComplianceNode
+            // engine needs it. See docs/programs/ecc/hierarchy.md.
+            'hierarchy' => [
+                'levels' => ['required', 'array', 'min:1', 'max:10'],
+                'levels.*.node_type' => ['required', 'string', 'max:50', 'regex:/^[a-z_]+$/'],
+                'levels.*.label_ar' => ['required', 'string', 'max:100'],
+                'levels.*.label_en' => ['required', 'string', 'max:100'],
+                'levels.*.parent_type' => ['nullable', 'string', 'max:50'],
+                'levels.*.is_assessable' => ['required', 'boolean'],
+                'max_depth' => ['required', 'integer', 'min:1', 'max:10'],
+            ],
             'import' => [
                 'program_code' => ['required', 'string', 'max:20'],
                 'template_version' => ['required', 'string', 'max:30'],

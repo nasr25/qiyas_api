@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\InvalidHierarchyException;
 use App\Exceptions\InvalidProgramConfigurationException;
 use App\Exceptions\WorkflowConflictException;
 use App\Http\Middleware\EnsureProgramAccess;
@@ -62,6 +63,11 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
         $exceptions->render(function (InvalidProgramConfigurationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+        });
+        $exceptions->render(function (InvalidHierarchyException $e, Request $request) {
             if ($request->is('api/*')) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }

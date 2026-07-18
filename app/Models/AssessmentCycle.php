@@ -15,7 +15,7 @@ class AssessmentCycle extends Model
     use HasFactory;
 
     protected $fillable = [
-        'compliance_program_id', 'name', 'name_ar', 'name_en', 'year', 'start_date', 'end_date',
+        'compliance_program_id', 'content_version_id', 'name', 'name_ar', 'name_en', 'year', 'start_date', 'end_date',
         'status', 'is_current', 'final_score', 'closing_notes', 'settings',
         'activated_at', 'closed_at', 'closed_by', 'created_by',
     ];
@@ -38,6 +38,17 @@ class AssessmentCycle extends Model
     public function program()
     {
         return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
+    }
+
+    /** The framework content version this cycle was created against (nullable — Qiyas/Sumoud don't use content versioning). */
+    public function contentVersion()
+    {
+        return $this->belongsTo(ComplianceContentVersion::class, 'content_version_id');
+    }
+
+    public function complianceNodes()
+    {
+        return $this->hasMany(ComplianceNode::class, 'program_cycle_id');
     }
 
     public function creator()

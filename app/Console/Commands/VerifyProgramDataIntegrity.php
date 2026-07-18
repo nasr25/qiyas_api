@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ComplianceContentVersion;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
@@ -13,6 +15,7 @@ use App\Models\RequirementAssignment;
 use App\Models\SlaInstance;
 use App\Models\Standard;
 use App\Models\WorkflowDecision;
+use App\Models\WorkflowDefinition;
 use Illuminate\Console\Command;
 
 /**
@@ -52,7 +55,11 @@ class VerifyProgramDataIntegrity extends Command
         $this->table(['Metric', 'Count'], [
             ['Program existence', 1],
             ['Configuration status (categories configured)', ProgramConfiguration::where('compliance_program_id', $programId)->count()],
+            ['Workflow definition present', WorkflowDefinition::where('compliance_program_id', $programId)->count()],
             ['Active cycles', $program->cycles()->where('is_current', true)->count()],
+            ['Content versions', ComplianceContentVersion::where('compliance_program_id', $programId)->count()],
+            ['Hierarchy nodes', ComplianceNode::where('compliance_program_id', $programId)->count()],
+            ['Assessable hierarchy nodes', ComplianceNode::where('compliance_program_id', $programId)->where('is_assessable', true)->count()],
             ['Domains (perspectives, distinct)', Standard::where('compliance_program_id', $programId)->whereNotNull('perspective')->distinct('perspective')->count('perspective')],
             ['Categories (axes, distinct)', Standard::where('compliance_program_id', $programId)->whereNotNull('axis')->distinct('axis')->count('axis')],
             ['Requirements (standards)', Standard::where('compliance_program_id', $programId)->count()],
@@ -141,8 +148,25 @@ class VerifyProgramDataIntegrity extends Command
         $submissionsWithForeignAssignment = EvidenceSubmission::where('compliance_program_id', $programId)
             ->whereHas('assignment', fn ($q) => $q->where('compliance_program_id', '!=', $programId))->count();
 
+        // Hierarchy checks (Phase 6, ComplianceNode) — mixed-program parent/
+        // child, invalid content-version ownership, circular hierarchy, and
+        // assessable nodes missing their bridged `standards` row (the
+        // engine correction: an assessable node MUST have standard_id, or
+        // it is invisible to the entire assignment/evidence/review pipeline).
+        $nodesWithForeignParent = ComplianceNode::where('compliance_program_id', $programId)
+            ->whereHas('parent', fn ($q) => $q->where('compliance_program_id', '!=', $programId))->count();
+        $nodesWithForeignContentVersion = ComplianceNode::where('compliance_program_id', $programId)
+            ->whereHas('contentVersion', fn ($q) => $q->where('compliance_program_id', '!=', $programId))->count();
+        $assessableNodesWithoutStandard = ComplianceNode::where('compliance_program_id', $programId)
+            ->where('is_assessable', true)->whereNull('standard_id')->count();
+        $circularNodes = $this->countCircularNodes($programId);
+
         return [
             ['Missing program IDs on assignments', RequirementAssignment::whereNull('compliance_program_id')->count(), RequirementAssignment::whereNull('compliance_program_id')->count() === 0],
+            ['Hierarchy nodes with a parent in another program', $nodesWithForeignParent, $nodesWithForeignParent === 0],
+            ['Hierarchy nodes with a content version in another program', $nodesWithForeignContentVersion, $nodesWithForeignContentVersion === 0],
+            ['Assessable hierarchy nodes missing their bridged requirement', $assessableNodesWithoutStandard, $assessableNodesWithoutStandard === 0],
+            ['Circular hierarchy references', $circularNodes, $circularNodes === 0],
             ['Assignments with dangling department_id', $assignmentsBadDept, $assignmentsBadDept === 0],
             ['Assignments with dangling requirement_id', $assignmentsBadRequirement, $assignmentsBadRequirement === 0],
             ['Submissions without a parent assignment', $submissionsWithoutAssignment, $submissionsWithoutAssignment === 0],
@@ -159,5 +183,30 @@ class VerifyProgramDataIntegrity extends Command
             ['Cross-program assignment relationships (requirement in another program)', $assignmentsWithForeignRequirement, $assignmentsWithForeignRequirement === 0],
             ['Cross-program evidence relationships (assignment in another program)', $submissionsWithForeignAssignment, $submissionsWithForeignAssignment === 0],
         ];
+    }
+
+    /** Walks each node's ancestor chain (bounded) and counts any that never reach a root — the structural signature of a cycle. */
+    private function countCircularNodes(int $programId): int
+    {
+        $nodes = ComplianceNode::where('compliance_program_id', $programId)->get(['id', 'parent_id'])->keyBy('id');
+        $circular = 0;
+
+        foreach ($nodes as $node) {
+            $seen = [];
+            $current = $node;
+            $hops = 0;
+            while ($current && $current->parent_id !== null && $hops < 20) {
+                if (isset($seen[$current->id])) {
+                    $circular++;
+
+                    break;
+                }
+                $seen[$current->id] = true;
+                $current = $nodes->get($current->parent_id);
+                $hops++;
+            }
+        }
+
+        return $circular;
     }
 }

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Documents\DocumentController;
 use App\Http\Controllers\Api\Documents\ExtensionRequestController;
 use App\Http\Controllers\Api\ExecutiveDashboardController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\Programs\ComplianceHierarchyController;
 use App\Http\Controllers\Api\Programs\ComplianceProgramController;
 use App\Http\Controllers\Api\Programs\ProgramCycleController;
 use App\Http\Controllers\Api\Programs\ProgramDashboardController;
@@ -99,6 +100,15 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('domains', [ProgramTaxonomyController::class, 'domains']);
                 Route::get('categories', [ProgramTaxonomyController::class, 'categories']);
+
+                // Generic arbitrary-depth hierarchy (Phase 6) — used by ECC,
+                // available to any program that configures a `hierarchy`
+                // category. See docs/programs/ecc/hierarchy.md.
+                Route::get('hierarchy-levels', [ComplianceHierarchyController::class, 'levels']);
+                Route::get('hierarchy', [ComplianceHierarchyController::class, 'index']);
+                Route::post('hierarchy', [ComplianceHierarchyController::class, 'store']);
+                Route::get('hierarchy/{node}', [ComplianceHierarchyController::class, 'show']);
+                Route::get('content-versions', [ComplianceHierarchyController::class, 'contentVersions']);
 
                 Route::get('requirements', [ProgramRequirementController::class, 'index']);
                 Route::get('requirements/{requirement}', [ProgramRequirementController::class, 'show']);

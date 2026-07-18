@@ -51,6 +51,14 @@ class DatabaseSeeder extends Seeder
             SumoudWorkflowDefinitionSeeder::class,
             SumoudProgramConfigurationSeeder::class,
             SumoudTestAccountsSeeder::class,
+            // Phase 6: ECC's own workflow/configuration data (entirely
+            // separate rows from Qiyas's/Sumoud's) plus its test accounts.
+            // No official ECC content is seeded here — see
+            // ECCSampleDataSeeder, which is intentionally NOT called from
+            // this production seeding path.
+            ECCWorkflowDefinitionSeeder::class,
+            ECCProgramConfigurationSeeder::class,
+            ECCTestAccountsSeeder::class,
         ]);
     }
 }

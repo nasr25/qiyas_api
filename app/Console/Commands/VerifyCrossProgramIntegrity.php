@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\EvidenceSubmission;
 use App\Models\ProgramUserRole;
@@ -73,6 +74,21 @@ class VerifyCrossProgramIntegrity extends Command
             ->whereNotIn('compliance_program_id', ComplianceProgram::pluck('id'))
             ->count();
 
+        // Phase 6: ComplianceNode (the deep hierarchy engine ECC uses) —
+        // same class of check as Standard/RequirementAssignment above.
+        $nodesForeignParent = ComplianceNode::query()
+            ->join('compliance_nodes as parents', 'compliance_nodes.parent_id', '=', 'parents.id')
+            ->whereColumn('compliance_nodes.compliance_program_id', '!=', 'parents.compliance_program_id')
+            ->count();
+        $nodesForeignCycle = ComplianceNode::query()
+            ->join('assessment_cycles', 'compliance_nodes.program_cycle_id', '=', 'assessment_cycles.id')
+            ->whereColumn('compliance_nodes.compliance_program_id', '!=', 'assessment_cycles.compliance_program_id')
+            ->count();
+        $standardsForeignNode = Standard::query()
+            ->join('compliance_nodes', 'standards.compliance_node_id', '=', 'compliance_nodes.id')
+            ->whereColumn('standards.compliance_program_id', '!=', 'compliance_nodes.compliance_program_id')
+            ->count();
+
         $checks = [
             ['Standards linked to a cycle owned by a different program', $standardsForeignCycle],
             ['Assignments linked to a requirement owned by a different program', $assignmentsForeignRequirement],
@@ -80,6 +96,9 @@ class VerifyCrossProgramIntegrity extends Command
             ['Evidence submissions linked to an assignment owned by a different program', $submissionsForeignAssignment],
             ['Evidence submissions linked to a cycle owned by a different program', $submissionsForeignCycle],
             ['Program memberships referencing a nonexistent program', $membershipsOrphanedProgram],
+            ['Hierarchy nodes linked to a parent owned by a different program', $nodesForeignParent],
+            ['Hierarchy nodes linked to a cycle owned by a different program', $nodesForeignCycle],
+            ['Standards bridged to a hierarchy node owned by a different program', $standardsForeignNode],
         ];
 
         foreach ($checks as [$label, $count]) {
@@ -90,14 +109,21 @@ class VerifyCrossProgramIntegrity extends Command
 
         $this->newLine();
 
-        $qiyas = ComplianceProgram::where('code', 'QIYAS')->first();
-        $sumoud = ComplianceProgram::where('code', 'SUMOUD')->first();
-        if ($qiyas && $sumoud) {
-            $sharedCycles = AssessmentCycle::whereIn('id', function ($q) use ($qiyas) {
-                $q->select('cycle_id')->from('standards')->where('compliance_program_id', $qiyas->id);
-            })->where('compliance_program_id', $sumoud->id)->count();
-            $this->line(sprintf('  [%s] %-75s %d', $sharedCycles === 0 ? '<fg=green>OK</>' : '<fg=red>FAIL</>', 'Qiyas standards referencing a Sumoud-owned cycle (or vice versa)', $sharedCycles));
-            $checks[] = ['Qiyas/Sumoud shared-cycle contamination', $sharedCycles];
+        // Pairwise shared-cycle check across EVERY pair of active programs
+        // (not hardcoded to any two) — a standard belonging to program A
+        // must never reference a cycle owned by program B.
+        foreach ($programs as $a) {
+            foreach ($programs as $b) {
+                if ($a->id >= $b->id) {
+                    continue;
+                }
+                $sharedCycles = AssessmentCycle::whereIn('id', function ($q) use ($a) {
+                    $q->select('cycle_id')->from('standards')->where('compliance_program_id', $a->id);
+                })->where('compliance_program_id', $b->id)->count();
+                $label = "{$a->code}/{$b->code} shared-cycle contamination";
+                $this->line(sprintf('  [%s] %-75s %d', $sharedCycles === 0 ? '<fg=green>OK</>' : '<fg=red>FAIL</>', $label, $sharedCycles));
+                $checks[] = [$label, $sharedCycles];
+            }
         }
 
         $failed = collect($checks)->contains(fn ($c) => $c[1] !== 0);

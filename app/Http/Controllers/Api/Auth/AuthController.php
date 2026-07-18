@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AuthService;
+use Database\Seeders\ECCTestAccountsSeeder;
 use Database\Seeders\SumoudTestAccountsSeeder;
 use Database\Seeders\TestUsersSeeder;
 use Illuminate\Http\JsonResponse;
@@ -65,7 +66,7 @@ class AuthController extends Controller
 
         $request->validate(['username' => ['required', 'string']]);
 
-        if (! in_array($request->username, [...TestUsersSeeder::usernames(), ...SumoudTestAccountsSeeder::usernames()], true)) {
+        if (! in_array($request->username, [...TestUsersSeeder::usernames(), ...SumoudTestAccountsSeeder::usernames(), ...ECCTestAccountsSeeder::usernames()], true)) {
             return response()->json(['success' => false, 'message' => 'Not a test account.'], 422);
         }
 
@@ -103,7 +104,7 @@ class AuthController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $users = User::whereIn('username', [...TestUsersSeeder::usernames(), ...SumoudTestAccountsSeeder::usernames()])
+        $users = User::whereIn('username', [...TestUsersSeeder::usernames(), ...SumoudTestAccountsSeeder::usernames(), ...ECCTestAccountsSeeder::usernames()])
             ->with(['department', 'programRoles.program'])->orderBy('id')->get()
             ->map(fn ($u) => [
                 'username' => $u->username,
