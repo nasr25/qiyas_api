@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\BrandingController;
 use App\Http\Controllers\Api\Admin\EmailLogController;
 use App\Http\Controllers\Api\Admin\EmailTemplateController;
 use App\Http\Controllers\Api\Admin\HealthController;
 use App\Http\Controllers\Api\Admin\SettingController;
+use App\Http\Controllers\Api\Admin\SmtpSettingsController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Auditor\AuditorController;
 use App\Http\Controllers\Api\Auth\AuthController;
@@ -329,7 +331,21 @@ Route::prefix('v1')->group(function () {
             Route::get('settings', [SettingController::class, 'index']);
             Route::get('settings/{group}', [SettingController::class, 'group']);
             Route::post('settings', [SettingController::class, 'update']);
-            Route::post('settings/branding/upload', [SettingController::class, 'uploadBranding']);
+
+            // Phase 8: versioned, validated/sanitized branding assets — the sole
+            // branding upload path (see docs/administration/branding.md). Supersedes
+            // an earlier extension-only-validated settings/branding/upload endpoint,
+            // which has been removed rather than hardened in place.
+            Route::get('branding/{type}', [BrandingController::class, 'history']);
+            Route::post('branding/{type}/upload', [BrandingController::class, 'upload']);
+            Route::post('branding/{type}/{asset}/activate', [BrandingController::class, 'activate']);
+            Route::post('branding/{type}/{asset}/restore', [BrandingController::class, 'restore']);
+
+            // Phase 8: SMTP settings (see docs/administration/smtp-settings.md)
+            Route::get('smtp-settings', [SmtpSettingsController::class, 'show']);
+            Route::put('smtp-settings', [SmtpSettingsController::class, 'update']);
+            Route::post('smtp-settings/test', [SmtpSettingsController::class, 'test']);
+            Route::get('smtp-settings/history', [SmtpSettingsController::class, 'history']);
 
             // Email delivery log
             Route::get('email-logs', [EmailLogController::class, 'index']);

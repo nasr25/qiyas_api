@@ -8,12 +8,12 @@ use App\Listeners\LogEmailSent;
 use App\Listeners\SendWorkflowNotification;
 use App\Models\Document;
 use App\Models\EmailLog;
-use App\Models\Setting;
 use App\Policies\DocumentPolicy;
 use App\Services\AuthService;
 use App\Services\CycleService;
 use App\Services\DocumentService;
 use App\Services\LdapService;
+use App\Services\SmtpSettingsService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
@@ -105,27 +105,25 @@ class AppServiceProvider extends ServiceProvider
      * Override the SMTP mailer config from the DB Settings (the admin SMTP tab),
      * so email works without editing .env. Only applies when a host is set.
      */
+    /**
+     * Applies the Super-Admin-managed, encrypted-at-rest SMTP
+     * configuration (smtp_settings table) to the runtime mail config —
+     * see SmtpSettingsService::applyToRuntimeConfig(). Replaces a prior
+     * mechanism that read an SMTP password from the generic, unencrypted
+     * `settings` key-value table; that table never actually held a
+     * password in any environment this platform has run in, but the
+     * mechanism itself was a latent plaintext-secret-storage risk and is
+     * removed rather than hardened in place. See
+     * docs/security/smtp-security.md.
+     */
     private function applyMailSettings(): void
     {
         try {
-            if (! Schema::hasTable('settings')) {
+            if (! Schema::hasTable('smtp_settings')) {
                 return;
             }
 
-            $host = Setting::get('smtp', 'host');
-            if (! $host) {
-                return;
-            }
-
-            config([
-                'mail.default' => 'smtp',
-                'mail.mailers.smtp.host' => $host,
-                'mail.mailers.smtp.port' => (int) Setting::get('smtp', 'port', 587),
-                'mail.mailers.smtp.username' => Setting::get('smtp', 'username'),
-                'mail.mailers.smtp.password' => Setting::get('smtp', 'password'),
-                'mail.mailers.smtp.encryption' => Setting::get('smtp', 'encryption') ?: null,
-                'mail.from.address' => Setting::get('smtp', 'from_address') ?: config('mail.from.address'),
-            ]);
+            app(SmtpSettingsService::class)->applyToRuntimeConfig();
         } catch (\Throwable $e) {
             // Never let mail config break booting (e.g. before migrations run).
         }
