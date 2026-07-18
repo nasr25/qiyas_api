@@ -1,7 +1,67 @@
 # Changelog — Qiyas API (backend)
 
+**Author:** Nasser
+
 All notable changes to the backend are recorded here, newest first.
 Format: **Added / Changed / Fixed / Security / Deps**.
+
+## [Phase 8] Production readiness, security hardening, offline readiness
+
+### Added
+- Versioned, validated/sanitized Super Admin branding asset management
+  (`branding_assets` table, `BrandingService`, `BrandingController`) —
+  supersedes the earlier extension-only-validated upload endpoint,
+  which is removed. See `docs/administration/branding.md`.
+- Encrypted-at-rest Super Admin SMTP configuration
+  (`smtp_settings` table, `SmtpSettingsService`,
+  `SmtpSettingsController`) with a test-connection action and a
+  password that is never returned by the API. See
+  `docs/administration/smtp-settings.md`.
+- Append-only, secret-aware settings versioning (`setting_versions`
+  table) — records old/new values for non-secret fields and only a
+  `configured`/`changed`/`removed` action (never a value) for secrets.
+- A Super Admin Email Templates administration page (the API existed
+  from an earlier phase; the frontend UI is new this phase).
+- `scripts/scan-prohibited-references.sh` — a deterministic, non-AI CI
+  scan for automated-code-generation-tool references, wired into a new
+  GitHub Actions workflow alongside `composer audit` and the test suite.
+- `scripts/backup.sh` / `scripts/restore.sh` — DB + evidence + branding
+  storage backup and checksum-verified restore, run for real against
+  the dev database as a drill.
+- `scripts/generate-release-manifest.sh` and `tests/load/smoke.js` (k6
+  smoke-scale load test, executed for real: 10 VUs/30s, 0% failure).
+- Additional security headers: `Cross-Origin-Opener-Policy`,
+  `Cross-Origin-Resource-Policy`, a default `Cache-Control: no-store`.
+- Self-hosted fonts (`@fontsource/*`) in the frontend, replacing a
+  Google Fonts CDN import, for full offline operation.
+
+### Changed
+- The public `GET /branding` endpoint now reads active branding
+  versions directly instead of the legacy flat settings table.
+- `AppServiceProvider::applyMailSettings()` now delegates to the
+  encrypted `SmtpSettingsService` instead of an unencrypted (and, in
+  every environment this platform has run in, never actually
+  populated) generic-settings read path.
+
+### Removed
+- The unused backend-root Vite/Node scaffold (referenced a public
+  Bunny Fonts CDN for an unused font — a latent offline-first
+  violation in dead code) and the default Laravel welcome page.
+- The old, extension-only-validated `POST
+  /admin/settings/branding/upload` endpoint.
+
+## [Phase 4–7] Multi-program platform (summary)
+
+Phases 4 through 7 progressively built: a configuration-driven
+Compliance Engine and Playwright E2E suite (Phase 4); Sumoud as a
+second active program with cross-program role resolution (Phase 5); a
+generic, arbitrary-depth hierarchy engine (`ComplianceNode`/
+`ComplianceContentVersion`) introduced for ECC as a third program
+(Phase 6); and NDMO as a fourth program plus a generic Responsibility
+engine, proving the hierarchy engine required zero changes for a new
+program shape (Phase 7). See `docs/multi-program-architecture.md`,
+`docs/compliance-engine-architecture.md`, and the per-program docs
+under `docs/programs/`.
 
 ## [Unreleased]
 

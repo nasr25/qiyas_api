@@ -1,15 +1,36 @@
 # Government Compliance Management Platform — Backend (Laravel API)
 
-Multi-program government compliance platform. **Qiyas** — DGA digital‑government
-compliance (assessment cycles, standards, evidence documents, review/approval
-workflow) — is the first Compliance Program hosted on the platform; the
-architecture supports adding further programs (Sumoud, ECC, NDMO, ...)
-without another major database or authorization redesign. See
+**Author:** Nasser
+
+Multi-program government compliance platform hosting four active
+Compliance Programs on one generic engine: **Qiyas** (DGA
+digital-government compliance), **Sumoud**, **ECC**, and **NDMO**.
+Program isolation, the arbitrary-depth hierarchy engine
+(`ComplianceNode`/`ComplianceContentVersion`), and the workflow engine
+are fully generic — the fourth program (NDMO) required zero engine
+changes, confirming the architecture. See
+[`docs/architecture.md`](docs/architecture.md) and
 [`docs/multi-program-architecture.md`](docs/multi-program-architecture.md).
 
 - **Stack:** Laravel 13 (REST API), JWT auth (tymon/jwt-auth), Spatie RBAC, MySQL 8
-- **Frontend:** Vue 3 SPA (separate repo `qiyas_frontend`)
+- **Frontend:** Vue 3 SPA + Tailwind CSS (separate repo `qiyas_frontend`) — see that repo's README
 - **API base:** `/api/v1`
+- **No artificial intelligence functionality of any kind** is present anywhere in this platform — see [`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
+- **Offline-first:** the platform runs with zero public-internet access — see [`docs/offline-assets.md`](docs/offline-assets.md).
+
+## Platform administration (Super Admin)
+
+- [`docs/administration/super-admin-guide.md`](docs/administration/super-admin-guide.md) — overview of every Super Admin capability
+- [`docs/administration/branding.md`](docs/administration/branding.md) — versioned logo/favicon management
+- [`docs/administration/smtp-settings.md`](docs/administration/smtp-settings.md) — encrypted-at-rest SMTP configuration
+- [`docs/administration/email-templates.md`](docs/administration/email-templates.md) — notification email template editing
+- [`docs/administration/system-settings.md`](docs/administration/system-settings.md) — the full settings catalog
+
+## Operations & deployment
+
+- [`docs/deployment/iis-production.md`](docs/deployment/iis-production.md), [`offline-deployment.md`](docs/deployment/offline-deployment.md), [`release-process.md`](docs/deployment/release-process.md), [`rollback.md`](docs/deployment/rollback.md)
+- [`docs/operations/operations-guide.md`](docs/operations/operations-guide.md), [`queue-and-scheduler.md`](docs/operations/queue-and-scheduler.md), [`monitoring.md`](docs/operations/monitoring.md), [`health-checks.md`](docs/operations/health-checks.md), [`troubleshooting.md`](docs/operations/troubleshooting.md)
+- [`docs/backup/backup-guide.md`](docs/backup/backup-guide.md), [`restore-guide.md`](docs/backup/restore-guide.md), [`docs/disaster-recovery.md`](docs/disaster-recovery.md)
 
 ### Multi-program architecture docs
 
@@ -50,7 +71,12 @@ The 89 real DGA standards load separately into a draft cycle via
 
 ---
 
-## Business Workflow
+## Business Workflow (Qiyas example)
+
+> The tables below describe the **Qiyas** program specifically, as a
+> concrete example — the underlying engine is generic and the same
+> shapes apply to Sumoud/ECC/NDMO with program-specific terminology.
+> See `docs/programs/{sumoud,ecc,ndmo}/workflow.md` for the others.
 
 | # | Question | Answer |
 |---|----------|--------|
@@ -149,9 +175,25 @@ request/approve/reject, and comment creation.
 
 ## Tests
 
-Feature tests covering role permissions and department data isolation live in
-`tests/Feature`. Run them with:
+Backend feature/unit tests (PHPUnit) live in `tests/Feature` and
+`tests/Unit`:
 
 ```bash
 php artisan test
 ```
+
+Frontend end-to-end tests (Playwright) live in the `frontend` repo at
+`tests/e2e/` and require an isolated E2E environment — see
+[`docs/testing/playwright-guide.md`](docs/testing/playwright-guide.md).
+
+Load testing uses k6 (never Playwright) — see
+[`docs/testing/load-testing.md`](docs/testing/load-testing.md).
+
+## CI quality gate
+
+`scripts/scan-prohibited-references.sh` deterministically scans every
+currently tracked file for references to automated code-generation
+tools and fails the build if any unreviewed match is found — see
+[`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
+It runs in CI (`.github/workflows/ci.yml`) alongside `composer audit`
+and the full test suite.
