@@ -27,6 +27,18 @@ class SecurityHeaders
         // frame-ancestors 'none' covers clickjacking without needing any
         // script/style/font allowances a real page would require.
         $response->headers->set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+        // Isolates this origin's browsing context/resources from other
+        // origins even if a script-injection bug were ever found elsewhere.
+        $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+
+        // Every JSON API response here can carry authenticated/sensitive
+        // data (settings, evidence metadata, audit entries) — never let an
+        // intermediary cache it. A future genuinely public, cacheable
+        // endpoint can override this by setting its own Cache-Control.
+        if (! $response->headers->hasCacheControlDirective('public')) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
 
         if ($request->secure()) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
