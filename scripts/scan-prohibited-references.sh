@@ -52,6 +52,17 @@ ALLOWLIST=(
   # produce AI-generated recommendations") in the Qiyas known-issues
   # log — a limitation statement, not an attribution claim.
   'docs/qiyas-known-issues.md:100:b93df34015646880c415ecab80f1320dea8a925989a5ec25c01a07f59c9be330'
+
+  # This script's own header comment and PATTERN/allowlist-justification
+  # text necessarily spell out the exact trigger words to document what
+  # the scan searches for and why each exclusion above is legitimate —
+  # inherently self-matching, and not an attribution of any kind.
+  'scripts/scan-prohibited-references.sh:4:f9eb4c730a47c1cb4bffde0b6b9ebefe3938dd0e626da1dca21a382d4a24ca63'
+  'scripts/scan-prohibited-references.sh:5:949478f556e1723e2ff9a66c74560b68c32e2346890e8e16d660cc280fb5e6f5'
+  'scripts/scan-prohibited-references.sh:6:2dcb046d383c91bc46d14ab37df187674e25d84486b63e2964718ba64507b5f6'
+  'scripts/scan-prohibited-references.sh:25:bd05f0134916815d96aaa1d7b2b813930443d6c0559ed0e966adda7feaa7dbe7'
+  'scripts/scan-prohibited-references.sh:32:30f1d007b524f827b0fcfb4ffa107be6814cd113d0205bd66053b9c5d8369e1f'
+  'scripts/scan-prohibited-references.sh:52:8b5131f181a0831cfaf488e9b9cd7674717c21fe9986e84c697ac0937307615d'
 )
 
 is_allowed() {
@@ -59,7 +70,11 @@ is_allowed() {
   local content_hash
   content_hash=$(printf '%s' "$content" | shasum -a 256 | cut -d' ' -f1)
   local entry entry_file entry_line entry_hash
-  for entry in "${ALLOWLIST[@]}"; do
+  # The bash-3.2 shipped on macOS (pre-4.4 behavior) treats expanding an
+  # empty array under `set -u` as an unbound-variable error — the
+  # `+"${ALLOWLIST[@]}"` guard keeps this portable across bash versions.
+  for entry in "${ALLOWLIST[@]+"${ALLOWLIST[@]}"}"; do
+    [[ -z "$entry" ]] && continue
     entry_file="${entry%%:*}"
     local rest="${entry#*:}"
     entry_line="${rest%%:*}"
