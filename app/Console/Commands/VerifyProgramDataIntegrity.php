@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\ComplianceContentVersion;
 use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
+use App\Models\ComplianceResponsibility;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\ExtensionRequest;
@@ -64,6 +65,7 @@ class VerifyProgramDataIntegrity extends Command
             ['Categories (axes, distinct)', Standard::where('compliance_program_id', $programId)->whereNotNull('axis')->distinct('axis')->count('axis')],
             ['Requirements (standards)', Standard::where('compliance_program_id', $programId)->count()],
             ['Requirement assignments', RequirementAssignment::where('compliance_program_id', $programId)->count()],
+            ['Responsibility assignments (active)', ComplianceResponsibility::where('compliance_program_id', $programId)->where('is_active', true)->count()],
             ['Evidence submissions', EvidenceSubmission::where('compliance_program_id', $programId)->count()],
             ['Evidence files', EvidenceFile::whereHas('submission', fn ($q) => $q->where('compliance_program_id', $programId))->count()],
             ['Review (workflow) decisions', WorkflowDecision::where('compliance_program_id', $programId)->count()],
@@ -161,8 +163,17 @@ class VerifyProgramDataIntegrity extends Command
             ->where('is_assessable', true)->whereNull('standard_id')->count();
         $circularNodes = $this->countCircularNodes($programId);
 
+        // Phase 7: a responsibility whose assignment belongs to a
+        // different program than the responsibility itself declares
+        // (should be structurally impossible — ResponsibilityService
+        // always copies compliance_program_id from the assignment — this
+        // is a defense-in-depth read-only check, not a trust boundary).
+        $responsibilitiesWithForeignAssignment = ComplianceResponsibility::where('compliance_program_id', $programId)
+            ->whereHas('assignment', fn ($q) => $q->where('compliance_program_id', '!=', $programId))->count();
+
         return [
             ['Missing program IDs on assignments', RequirementAssignment::whereNull('compliance_program_id')->count(), RequirementAssignment::whereNull('compliance_program_id')->count() === 0],
+            ['Unauthorized responsibility-to-assignment mappings (cross-program)', $responsibilitiesWithForeignAssignment, $responsibilitiesWithForeignAssignment === 0],
             ['Hierarchy nodes with a parent in another program', $nodesWithForeignParent, $nodesWithForeignParent === 0],
             ['Hierarchy nodes with a content version in another program', $nodesWithForeignContentVersion, $nodesWithForeignContentVersion === 0],
             ['Assessable hierarchy nodes missing their bridged requirement', $assessableNodesWithoutStandard, $assessableNodesWithoutStandard === 0],

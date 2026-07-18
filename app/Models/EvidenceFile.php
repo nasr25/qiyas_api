@@ -11,7 +11,7 @@ class EvidenceFile extends Model
 
     protected $fillable = [
         'evidence_submission_id', 'original_name', 'stored_name', 'storage_path',
-        'mime_type', 'file_size', 'file_hash', 'uploaded_by', 'uploaded_at', 'is_active',
+        'mime_type', 'file_size', 'file_hash', 'classification_metadata', 'uploaded_by', 'uploaded_at', 'is_active',
     ];
 
     protected function casts(): array
@@ -20,6 +20,7 @@ class EvidenceFile extends Model
             'uploaded_at' => 'datetime',
             'is_active' => 'boolean',
             'file_size' => 'integer',
+            'classification_metadata' => 'array',
         ];
     }
 

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\Workflow\MyRequirementsController;
 use App\Http\Controllers\Api\Workflow\ProgramManagerReviewController;
 use App\Http\Controllers\Api\Workflow\QiyasImportController;
 use App\Http\Controllers\Api\Workflow\RequirementAssignmentController;
+use App\Http\Controllers\Api\Workflow\ResponsibilityController;
 use App\Http\Controllers\Api\Workflow\SlaSettingController;
 use App\Http\Controllers\Api\Workflow\WorkflowDashboardController;
 use App\Http\Controllers\Api\Workflow\WorkflowReportController;
@@ -137,7 +138,15 @@ Route::prefix('v1')->group(function () {
                     Route::post('{assignment}/draft', [EvidenceSubmissionController::class, 'openDraft']);
                     Route::post('{assignment}/extension-requests', [WorkflowExtensionRequestController::class, 'store']);
                     Route::get('{assignment}/extension-requests', [WorkflowExtensionRequestController::class, 'forAssignment']);
+                    // Phase 7: generic responsibility labels (Data Owner,
+                    // Data Steward, ...) — see docs/programs/ndmo/responsibilities.md.
+                    Route::get('{assignment}/responsibilities', [ResponsibilityController::class, 'index']);
+                    Route::post('{assignment}/responsibilities', [ResponsibilityController::class, 'store']);
                 });
+
+                Route::get('responsibility-types', [ResponsibilityController::class, 'types']);
+                Route::delete('responsibilities/{responsibility}', [ResponsibilityController::class, 'destroy']);
+                Route::get('departments/{department}/users', [ResponsibilityController::class, 'departmentUsers']);
 
                 Route::get('my-requirements', [MyRequirementsController::class, 'index']);
 

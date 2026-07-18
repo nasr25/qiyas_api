@@ -153,6 +153,20 @@ class ProgramConfigurationService
                 'levels.*.is_assessable' => ['required', 'boolean'],
                 'max_depth' => ['required', 'integer', 'min:1', 'max:10'],
             ],
+            // Phase 7: which optional responsibility labels (Data Owner,
+            // Data Steward, ...) this program allows assigning, and their
+            // bilingual display labels ONLY — this schema has no field for
+            // granting workflow authority, deliberately: no code path
+            // anywhere reads a responsibility_type to authorize an action.
+            // See docs/programs/ndmo/responsibilities.md.
+            'responsibilities' => [
+                'enabled_types' => ['required', 'array'],
+                'enabled_types.*' => ['string', 'regex:/^[a-z_]+$/'],
+                'types' => ['required', 'array'],
+                'types.*.type' => ['required', 'string', 'max:50', 'regex:/^[a-z_]+$/'],
+                'types.*.label_ar' => ['required', 'string', 'max:100'],
+                'types.*.label_en' => ['required', 'string', 'max:100'],
+            ],
             'import' => [
                 'program_code' => ['required', 'string', 'max:20'],
                 'template_version' => ['required', 'string', 'max:30'],

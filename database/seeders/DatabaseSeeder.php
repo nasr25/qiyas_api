@@ -59,6 +59,14 @@ class DatabaseSeeder extends Seeder
             ECCWorkflowDefinitionSeeder::class,
             ECCProgramConfigurationSeeder::class,
             ECCTestAccountsSeeder::class,
+            // Phase 7: NDMO's own workflow/configuration data (entirely
+            // separate rows from Qiyas's/Sumoud's/ECC's) plus its test
+            // accounts. No official NDMO content is seeded here — see
+            // NDMOSampleDataSeeder, which is intentionally NOT called from
+            // this production seeding path.
+            NDMOWorkflowDefinitionSeeder::class,
+            NDMOProgramConfigurationSeeder::class,
+            NDMOTestAccountsSeeder::class,
         ]);
     }
 }

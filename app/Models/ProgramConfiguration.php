@@ -17,7 +17,7 @@ class ProgramConfiguration extends Model
         'identity', 'terminology', 'hierarchy', 'workflow', 'assignment',
         'evidence', 'review', 'deadlines', 'extensions', 'sla',
         'notifications', 'import', 'export', 'dashboards', 'reports',
-        'scoring', 'security', 'features',
+        'scoring', 'security', 'features', 'responsibilities',
     ];
 
     protected $fillable = [

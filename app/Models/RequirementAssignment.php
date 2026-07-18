@@ -92,6 +92,12 @@ class RequirementAssignment extends Model
         return $this->hasMany(SlaInstance::class);
     }
 
+    /** Informational responsibility labels (Data Owner, Data Steward, ...) — see ComplianceResponsibility's class doc. */
+    public function responsibilities()
+    {
+        return $this->hasMany(ComplianceResponsibility::class);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     public function isActive(): bool
