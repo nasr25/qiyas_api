@@ -96,6 +96,19 @@ class QiyasDocumentationSeeder extends Seeder
             ['user_id' => $employee->id, 'compliance_program_id' => $program->id, 'role_key' => 'employee', 'department_id' => $department->id, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
+        // DashboardController::getActiveCycle() picks whichever QIYAS cycle
+        // is `status=active` first — if the standard demo seeders already
+        // ran (as they do on a full `migrate --seed`), their own active
+        // demo cycle would otherwise win and every dashboard/report
+        // screenshot would show that unrelated data instead of this
+        // seeder's own neutral cycle. Closing every other active cycle for
+        // this program keeps this documentation database unambiguous —
+        // safe here because this seeder is only ever run against a
+        // dedicated, isolated documentation database, never a shared one.
+        AssessmentCycle::where('compliance_program_id', $program->id)
+            ->where('status', 'active')
+            ->update(['status' => 'closed', 'is_current' => false]);
+
         $cycle = AssessmentCycle::create([
             'compliance_program_id' => $program->id,
             'name' => 'دورة قياس التجريبية 2026',
@@ -105,7 +118,7 @@ class QiyasDocumentationSeeder extends Seeder
             'start_date' => now()->subMonths(2)->toDateString(),
             'end_date' => now()->addMonths(4)->toDateString(),
             'status' => 'active',
-            'is_current' => false, // the real demo cycle stays "current"; this one is opened explicitly by code below.
+            'is_current' => true,
             'activated_at' => now(),
             'created_by' => $programManager->id,
         ]);
