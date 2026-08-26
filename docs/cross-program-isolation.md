@@ -7,13 +7,17 @@ mix, and how this was verified for Phase 5.
 
 Every program-scoped table carries `compliance_program_id`. The critical
 mechanism proving isolation is not "trust the frontend" but **FK-derived,
-model-boot-time scoping**: `Standard::creating()` derives
-`compliance_program_id` from `cycle_id` unconditionally
-(`AssessmentCycle::whereKey($standard->cycle_id)->value('compliance_program_id')`)
-— it is structurally impossible to create a "Sumoud standard under a Qiyas
-cycle": the row becomes Qiyas-owned regardless of who created it or what
-program context the request believed it was in. Confirmed by
-`SumoudProgramEngineTest::test_sumoud_requirement_cannot_be_created_under_a_qiyas_cycle`.
+model-boot-time scoping**. `Standard::creating()` did this originally; the
+`Standard` model has since been retired and **`ComplianceNode` carries the
+same guarantee**, deriving `compliance_program_id` from its cycle rather than
+trusting the request. It remains structurally impossible to create a node of
+one program under another program's cycle: the row becomes owned by the
+cycle's program regardless of who created it or what program context the
+request believed it was in.
+
+Node identity is `Program + Structure Version + Hierarchy Level + Code`, with
+no fuzzy matching anywhere, so cross-program collision is not possible by
+construction either.
 
 ## Request-layer isolation
 

@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api\Reports;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCycle;
 use App\Models\Department;
-use App\Models\Document;
-use App\Models\Standard;
+use App\Models\RequirementAssignment;
+use App\Services\EvidenceStatusCounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -57,7 +57,15 @@ class ReportController extends Controller
     }
 
     /**
-     * Standard-level completion report.
+     * Per-requirement completion report.
+     *
+     * Rewritten onto ComplianceNode + EvidenceSubmission when the legacy
+     * Standard authoring path was retired. The route name `by-standard` is
+     * kept for API compatibility, but "standard" here means the program's
+     * own assessable level — Criterion for Qiyas, Control for ECC — and each
+     * row carries its full hierarchy path instead of a fixed two-column
+     * projection.
+     *
      * GET /api/v1/reports/by-standard
      */
     public function byStandard(Request $request): JsonResponse
@@ -69,53 +77,44 @@ class ReportController extends Controller
 
         $cycle = AssessmentCycle::findOrFail($request->cycle_id);
 
-        $standards = Standard::with('evidenceRequirements')
-            ->where('cycle_id', $cycle->id)
-            ->when($request->department_id, fn ($q) => $q->whereHas('departments', fn ($dq) => $dq->where('departments.id', $request->department_id)
-            ))
-            ->get()
-            ->map(function ($standard) use ($cycle, $request) {
-                $reqIds = $standard->evidenceRequirements->pluck('id');
+        $assignments = RequirementAssignment::where('program_cycle_id', $cycle->id)
+            ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
+            ->where('status', '!=', 'reassigned')
+            ->with(['node.hierarchyLevel', 'submissions'])
+            ->get();
 
-                $docStats = Document::whereIn('requirement_id', $reqIds)
-                    ->where('cycle_id', $cycle->id)
-                    ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
-                    ->selectRaw('status, count(*) as count')
-                    ->groupBy('status')
-                    ->pluck('count', 'status')
-                    ->toArray();
+        $rows = $assignments->groupBy('compliance_node_id')->map(function ($group) {
+            $node = $group->first()->node;
+            $submissions = $group->flatMap->submissions;
 
-                $total = array_sum($docStats);
-                $approved = $docStats['approved'] ?? 0;
+            $byStatus = $submissions->groupBy('status')->map->count();
+            $total = $submissions->count();
+            $approved = (int) ($byStatus['approved'] ?? 0);
 
-                return [
-                    'id' => $standard->id,
-                    'number' => $standard->standard_number,
-                    'name_ar' => $standard->name_ar,
-                    'name_en' => $standard->name_en,
-                    'requirements' => $standard->evidenceRequirements->count(),
-                    'total_docs' => $total,
-                    'approved' => $approved,
-                    'under_review' => $docStats['under_review'] ?? 0,
-                    'rejected' => $docStats['rejected'] ?? 0,
-                    'draft' => $docStats['draft'] ?? 0,
-                    'completion_rate' => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
-                ];
-            });
+            return [
+                'id' => $node?->id,
+                'number' => $node?->code,
+                'name_ar' => $node?->name_ar,
+                'name_en' => $node?->name_en,
+                'level_key' => $node?->hierarchyLevel?->key,
+                'level_name' => $node?->hierarchyLevel?->name,
+                'requirements' => $group->count(),
+                'total_docs' => $total,
+                'approved' => $approved,
+                'under_review' => (int) ($byStatus['pending_department_manager'] ?? 0)
+                    + (int) ($byStatus['pending_auditor'] ?? 0)
+                    + (int) ($byStatus['pending_program_manager'] ?? 0),
+                'rejected' => (int) ($byStatus['returned_for_revision'] ?? 0),
+                'completion_rate' => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
+            ];
+        })->values();
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'cycle' => ['id' => $cycle->id, 'name' => $cycle->name],
-                'standards' => $standards,
-            ],
+            'data' => ['cycle' => $cycle->name, 'standards' => $rows],
         ]);
     }
 
-    /**
-     * Status-filtered document list for export.
-     * GET /api/v1/reports/by-status
-     */
     public function byStatus(Request $request): JsonResponse
     {
         $request->validate([
@@ -123,15 +122,15 @@ class ReportController extends Controller
             'department_id' => ['nullable', 'exists:departments,id'],
         ]);
 
-        // Distribution of documents across all statuses (counts + percentages).
-        $counts = Document::query()
-            ->when($request->cycle_id, fn ($q) => $q->where('cycle_id', $request->cycle_id))
-            ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        // Distribution of evidence across all statuses (counts + percentages).
+        // Status names are the legacy five the report has always published;
+        // EvidenceStatusCounts maps the per-stage vocabulary onto them.
+        $counts = app(EvidenceStatusCounts::class)->for([
+            'cycle_id' => $request->cycle_id,
+            'department_id' => $request->department_id,
+        ]);
 
-        $total = (int) $counts->sum();
+        $total = $counts['total'];
 
         $statuses = collect(['draft', 'under_review', 'approved', 'rejected', 'overdue'])
             ->map(fn ($s) => [
@@ -156,14 +155,10 @@ class ReportController extends Controller
 
         $cycle = AssessmentCycle::with('standards')->findOrFail($request->cycle_id);
 
-        $docCounts = Document::where('cycle_id', $cycle->id)
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
+        $docCounts = app(EvidenceStatusCounts::class)->for(['cycle_id' => $cycle->id]);
 
-        $total = array_sum($docCounts);
-        $approved = $docCounts['approved'] ?? 0;
+        $total = $docCounts['total'];
+        $approved = $docCounts['approved'];
 
         return response()->json([
             'success' => true,

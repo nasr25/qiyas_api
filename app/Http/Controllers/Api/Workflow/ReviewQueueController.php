@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Workflow;
 
 use App\Exceptions\WorkflowConflictException;
 use App\Http\Controllers\Controller;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\EvidenceSubmission;
 use App\Services\WorkflowService;
@@ -49,8 +50,12 @@ abstract class ReviewQueueController extends Controller
 
         $query->when($request->cycle_id, fn ($q) => $q->where('program_cycle_id', $request->cycle_id))
             ->when($request->department_id, fn ($q) => $q->where('department_id', $request->department_id))
-            ->when($request->perspective, fn ($q) => $q->whereHas('requirement', fn ($r) => $r->where('perspective', $request->perspective)))
-            ->when($request->axis, fn ($q) => $q->whereHas('requirement', fn ($r) => $r->where('axis', $request->axis)));
+            // Depth-agnostic replacement for the old perspective/axis pair:
+            // filter by ANY ancestor node and get its whole subtree.
+            ->when($request->ancestor_id, fn ($q) => $q->whereIn(
+                'compliance_node_id',
+                ComplianceNode::subtreeIds((int) $request->ancestor_id),
+            ));
 
         $submissions = $query->latest('submitted_at')->paginate($request->get('per_page', 20));
 
@@ -61,7 +66,7 @@ abstract class ReviewQueueController extends Controller
             'data' => $submissions->getCollection()->map(fn (EvidenceSubmission $s) => [
                 'id' => $s->id,
                 'version_number' => $s->version_number,
-                'requirement' => ['id' => $s->assignment->requirement->id, 'code' => $s->assignment->requirement->standard_number, 'name' => $s->assignment->requirement->name],
+                'requirement' => ['id' => $s->assignment->requirement->id, 'code' => $s->assignment->requirement->code, 'name' => $s->assignment->requirement->name],
                 'department' => $s->department->name,
                 'submitted_at' => $s->submitted_at?->toIso8601String(),
                 'effective_due_date' => $s->assignment->effective_due_date?->toDateString(),

@@ -8,34 +8,29 @@ use App\Http\Controllers\Api\Admin\HealthController;
 use App\Http\Controllers\Api\Admin\SettingController;
 use App\Http\Controllers\Api\Admin\SmtpSettingsController;
 use App\Http\Controllers\Api\Admin\UserController;
-use App\Http\Controllers\Api\Auditor\AuditorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Cycles\AssessmentCycleController;
-use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\Departments\DepartmentController;
-use App\Http\Controllers\Api\Documents\CommentController;
-use App\Http\Controllers\Api\Documents\DocumentController;
-use App\Http\Controllers\Api\Documents\ExtensionRequestController;
 use App\Http\Controllers\Api\ExecutiveDashboardController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Programs\ComplianceHierarchyController;
 use App\Http\Controllers\Api\Programs\ComplianceProgramController;
+use App\Http\Controllers\Api\Programs\HierarchyDashboardController;
+use App\Http\Controllers\Api\Programs\HierarchyImportController;
+use App\Http\Controllers\Api\Programs\HierarchyReportController;
 use App\Http\Controllers\Api\Programs\ProgramCycleController;
 use App\Http\Controllers\Api\Programs\ProgramDashboardController;
 use App\Http\Controllers\Api\Programs\ProgramReportController;
 use App\Http\Controllers\Api\Programs\ProgramRequirementController;
-use App\Http\Controllers\Api\Programs\ProgramTaxonomyController;
+use App\Http\Controllers\Api\Programs\ProgramStructureController;
 use App\Http\Controllers\Api\Reports\ExportController;
 use App\Http\Controllers\Api\Reports\ReportController;
-use App\Http\Controllers\Api\Standards\EvidenceRequirementController;
-use App\Http\Controllers\Api\Standards\StandardController;
 use App\Http\Controllers\Api\Workflow\AuditorReviewController;
 use App\Http\Controllers\Api\Workflow\DepartmentManagerReviewController;
 use App\Http\Controllers\Api\Workflow\EvidenceSubmissionController;
 use App\Http\Controllers\Api\Workflow\ExtensionRequestController as WorkflowExtensionRequestController;
 use App\Http\Controllers\Api\Workflow\MyRequirementsController;
 use App\Http\Controllers\Api\Workflow\ProgramManagerReviewController;
-use App\Http\Controllers\Api\Workflow\QiyasImportController;
 use App\Http\Controllers\Api\Workflow\RequirementAssignmentController;
 use App\Http\Controllers\Api\Workflow\ResponsibilityController;
 use App\Http\Controllers\Api\Workflow\SlaSettingController;
@@ -56,16 +51,25 @@ Route::prefix('v1')->group(function () {
         Route::middleware('throttle:login')->group(function () {
             Route::post('login', [AuthController::class, 'login']);
             // Dev-only quick login (gated to local/debug inside the controller).
-            Route::post('quick-login', [AuthController::class, 'quickLogin']);
+            // Registered only outside production. Both endpoints already
+            // refuse there (AuthController::quickLoginEnabled()), but a
+            // passwordless-login route should not exist in a production
+            // route table at all — the runtime check is the second layer,
+            // not the only one.
+            if (! app()->environment('production')) {
+                Route::post('quick-login', [AuthController::class, 'quickLogin']);
+            }
         });
-        Route::get('dev-users', [AuthController::class, 'devUsers']);
+        if (! app()->environment('production')) {
+            Route::get('dev-users', [AuthController::class, 'devUsers']);
+        }
     });
 
     // ── Public: Branding (logo / platform name for login + shell) ────────
     Route::get('branding', [SettingController::class, 'branding']);
 
     // ── Protected Routes ─────────────────────────────────────────────────
-    Route::middleware(['jwt.auth', 'set.locale'])->group(function () {
+    Route::middleware(['jwt.session', 'set.locale'])->group(function () {
 
         // Auth
         Route::prefix('auth')->group(function () {
@@ -76,7 +80,6 @@ Route::prefix('v1')->group(function () {
         });
 
         // Dashboard (legacy, implicitly Qiyas-only — kept for backward compatibility)
-        Route::get('dashboard', [DashboardController::class, 'index']);
 
         // Executive Dashboard foundation — cross-program aggregate, Super Admin + Executive Viewer.
         Route::get('executive-dashboard', [ExecutiveDashboardController::class, 'index'])
@@ -101,8 +104,53 @@ Route::prefix('v1')->group(function () {
                 Route::post('cycles/{cycle}/close', [ProgramCycleController::class, 'close']);
                 Route::post('cycles/{cycle}/archive', [ProgramCycleController::class, 'archive']);
 
-                Route::get('domains', [ProgramTaxonomyController::class, 'domains']);
-                Route::get('categories', [ProgramTaxonomyController::class, 'categories']);
+                // ── Structure-driven XLSX ────────────────────────────
+                // Template columns follow the active structure, so a program
+                // that adds a level gets a wider template with no code
+                // change. See docs/dynamic-xlsx-engine.md.
+                Route::get('hierarchy-template', [HierarchyImportController::class, 'template'])->middleware('throttle:reports');
+                Route::get('hierarchy-export', [HierarchyImportController::class, 'export'])->middleware('throttle:reports');
+                Route::post('hierarchy-import/preview', [HierarchyImportController::class, 'preview'])->middleware('throttle:uploads');
+                Route::post('hierarchy-import/{importLog}/confirm', [HierarchyImportController::class, 'confirm'])->middleware('throttle:uploads');
+                Route::get('hierarchy-import/{importLog}/error-report', [HierarchyImportController::class, 'errorReport'])->middleware('throttle:reports');
+
+                // ── Generic hierarchy reporting ──────────────────────
+                // Dimensions, cascading filter options and export columns
+                // all derive from the program's own structure — one
+                // implementation for every program and depth.
+                // See docs/dynamic-reporting-engine.md.
+                Route::get('reports/dimensions', [HierarchyReportController::class, 'dimensions']);
+                Route::get('reports/filter-options/{levelKey}', [HierarchyReportController::class, 'filterOptions']);
+                Route::get('reports/hierarchy', [HierarchyReportController::class, 'hierarchy'])->middleware('throttle:reports');
+                Route::get('reports/hierarchy/export', [HierarchyReportController::class, 'export'])->middleware('throttle:reports');
+
+                // ── Hierarchy-driven dashboard ───────────────────────
+                // Universal metrics are hierarchy-neutral; drill-down is
+                // driven by the program's own dashboard-visible levels, so
+                // there is one endpoint per CONCERN, not one per level.
+                // See docs/dynamic-dashboard-engine.md.
+                Route::get('dashboard/metrics', [HierarchyDashboardController::class, 'metrics']);
+                Route::get('dashboard/levels', [HierarchyDashboardController::class, 'levels']);
+                Route::get('dashboard/by-level/{levelKey}', [HierarchyDashboardController::class, 'byLevel']);
+
+                // ── Program Structure Settings ───────────────────────
+                // The Program Manager's control over their OWN program's
+                // hierarchy shape and terminology. Reads are open to anyone
+                // with program access (labels drive every screen); writes
+                // require the program-manager role for THIS program, checked
+                // in HierarchyStructurePolicy. See
+                // docs/program-structure-settings.md.
+                Route::get('structure', [ProgramStructureController::class, 'show']);
+                Route::get('structure/versions', [ProgramStructureController::class, 'versions']);
+                Route::get('structure/draft', [ProgramStructureController::class, 'showDraft']);
+                Route::post('structure/draft', [ProgramStructureController::class, 'openDraft']);
+                Route::delete('structure/draft', [ProgramStructureController::class, 'discardDraft']);
+                Route::get('structure/draft/impact', [ProgramStructureController::class, 'impact']);
+                Route::post('structure/draft/activate', [ProgramStructureController::class, 'activate']);
+                Route::post('structure/draft/levels', [ProgramStructureController::class, 'addLevel']);
+                Route::put('structure/draft/levels/{level}', [ProgramStructureController::class, 'updateLevel']);
+                Route::delete('structure/draft/levels/{level}', [ProgramStructureController::class, 'removeLevel']);
+                Route::post('structure/draft/levels/{level}/move', [ProgramStructureController::class, 'moveLevel']);
 
                 // Generic arbitrary-depth hierarchy (Phase 6) — used by ECC,
                 // available to any program that configures a `hierarchy`
@@ -110,7 +158,11 @@ Route::prefix('v1')->group(function () {
                 Route::get('hierarchy-levels', [ComplianceHierarchyController::class, 'levels']);
                 Route::get('hierarchy', [ComplianceHierarchyController::class, 'index']);
                 Route::post('hierarchy', [ComplianceHierarchyController::class, 'store']);
+                // Static segment before the wildcard, or "search" is read as an id.
+                Route::get('hierarchy/search', [ComplianceHierarchyController::class, 'search']);
                 Route::get('hierarchy/{node}', [ComplianceHierarchyController::class, 'show']);
+                Route::put('hierarchy/{node}', [ComplianceHierarchyController::class, 'update']);
+                Route::post('hierarchy/{node}/archive', [ComplianceHierarchyController::class, 'archive']);
                 Route::get('content-versions', [ComplianceHierarchyController::class, 'contentVersions']);
 
                 Route::get('requirements', [ProgramRequirementController::class, 'index']);
@@ -155,7 +207,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('evidence-submissions')->group(function () {
                     Route::get('{submission}', [EvidenceSubmissionController::class, 'show']);
                     Route::get('{submission}/timeline', [EvidenceSubmissionController::class, 'timeline']);
-                    Route::post('{submission}/files', [EvidenceSubmissionController::class, 'uploadFile']);
+                    Route::post('{submission}/files', [EvidenceSubmissionController::class, 'uploadFile'])->middleware('throttle:uploads');
                     Route::post('{submission}/submit', [EvidenceSubmissionController::class, 'submit']);
                 });
                 Route::delete('evidence-files/{file}', [EvidenceSubmissionController::class, 'removeFile']);
@@ -172,12 +224,6 @@ Route::prefix('v1')->group(function () {
                     Route::get('auditor', [WorkflowDashboardController::class, 'auditor']);
                     Route::get('employee', [WorkflowDashboardController::class, 'employee']);
                 });
-
-                Route::get('requirements-template', [QiyasImportController::class, 'downloadTemplate']);
-                Route::get('requirements-imports', [QiyasImportController::class, 'index']);
-                Route::post('requirements-import/preview', [QiyasImportController::class, 'preview']);
-                Route::post('requirements-import/{importLog}/confirm', [QiyasImportController::class, 'confirm']);
-                Route::get('requirements-import/{importLog}/error-report', [QiyasImportController::class, 'errorReport']);
 
                 Route::prefix('reviews')->group(function () {
                     Route::prefix('department-manager')->group(function () {
@@ -236,68 +282,6 @@ Route::prefix('v1')->group(function () {
             Route::post('{cycle}/close', [AssessmentCycleController::class, 'close'])->middleware('permission:cycles.close');
             Route::post('{cycle}/archive', [AssessmentCycleController::class, 'archive'])->middleware('permission:cycles.archive');
 
-            // Standards within a cycle. Authorization is checked INSIDE the
-            // controller (StandardController::authorizeManage()), not via
-            // `permission:*` route middleware — a global spatie permission
-            // alone cannot express "Program Manager of the cycle's own
-            // program", which is what a Sumoud (or any non-Qiyas) Program
-            // Manager actually holds. See docs/cross-program-role-resolution.md.
-            Route::prefix('{cycle}/standards')->group(function () {
-                Route::get('/', [StandardController::class, 'index']);
-                // Static segments MUST precede the {standard} wildcard.
-                Route::get('template', [StandardController::class, 'template']);
-                Route::post('import', [StandardController::class, 'import']);
-                Route::post('/', [StandardController::class, 'store']);
-                Route::get('{standard}', [StandardController::class, 'show']);
-                Route::put('{standard}', [StandardController::class, 'update']);
-                Route::delete('{standard}', [StandardController::class, 'destroy']);
-            });
-        });
-
-        // Single standard by id (not nested under a cycle)
-        Route::get('standards/{standard}', [StandardController::class, 'showById']);
-
-        // Evidence Requirements (via standard) — see the same
-        // controller-level-authorization note above.
-        Route::prefix('standards/{standard}/requirements')->group(function () {
-            Route::get('/', [EvidenceRequirementController::class, 'index']);
-            Route::post('/', [EvidenceRequirementController::class, 'store']);
-            Route::get('{requirement}', [EvidenceRequirementController::class, 'show']);
-            Route::put('{requirement}', [EvidenceRequirementController::class, 'update']);
-            Route::delete('{requirement}', [EvidenceRequirementController::class, 'destroy']);
-        });
-
-        // Documents
-        Route::prefix('documents')->group(function () {
-            Route::get('/', [DocumentController::class, 'index']);
-            Route::post('/', [DocumentController::class, 'store'])->middleware('permission:documents.create');
-            Route::get('{document}', [DocumentController::class, 'show']);
-            Route::post('{document}/upload', [DocumentController::class, 'upload'])->middleware('permission:documents.upload');
-            Route::post('{document}/submit', [DocumentController::class, 'submit'])->middleware('permission:documents.submit');
-            Route::get('{document}/versions/{version}/download', [DocumentController::class, 'download'])->middleware('permission:documents.download');
-
-            // Comments
-            Route::prefix('{document}/comments')->group(function () {
-                Route::get('/', [CommentController::class, 'index']);
-                Route::post('/', [CommentController::class, 'store'])->middleware('permission:comments.create');
-                Route::delete('{comment}', [CommentController::class, 'destroy'])->middleware('permission:comments.delete');
-            });
-
-            // Extension Requests
-            Route::prefix('{document}/extension-requests')->group(function () {
-                Route::get('/', [ExtensionRequestController::class, 'index']);
-                Route::post('/', [ExtensionRequestController::class, 'store'])->middleware('permission:extensions.create');
-            });
-        });
-
-        // Auditor Portal
-        Route::prefix('auditor')->middleware('role:auditor|super-admin')->group(function () {
-            Route::get('pending-reviews', [AuditorController::class, 'pendingReviews']);
-            Route::post('documents/{document}/approve', [AuditorController::class, 'approve']);
-            Route::post('documents/{document}/reject', [AuditorController::class, 'reject']);
-            Route::get('extension-requests', [AuditorController::class, 'extensionRequests']);
-            Route::post('extension-requests/{extensionRequest}/approve', [AuditorController::class, 'approveExtension']);
-            Route::post('extension-requests/{extensionRequest}/reject', [AuditorController::class, 'rejectExtension']);
         });
 
         // Reports
@@ -307,9 +291,9 @@ Route::prefix('v1')->group(function () {
             Route::get('by-status', [ReportController::class, 'byStatus']);
             Route::get('cycle-summary', [ReportController::class, 'cycleSummary']);
             // Exports
-            Route::get('export/department-excel', [ExportController::class, 'departmentExcel']);
-            Route::get('export/department-pdf', [ExportController::class, 'departmentPdf']);
-            Route::get('export/cycle-summary-pdf', [ExportController::class, 'cycleSummaryPdf']);
+            Route::get('export/department-excel', [ExportController::class, 'departmentExcel'])->middleware('throttle:reports');
+            Route::get('export/department-pdf', [ExportController::class, 'departmentPdf'])->middleware('throttle:reports');
+            Route::get('export/cycle-summary-pdf', [ExportController::class, 'cycleSummaryPdf'])->middleware('throttle:reports');
         });
 
         // Admin Routes

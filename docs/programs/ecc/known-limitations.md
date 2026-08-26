@@ -1,5 +1,24 @@
 # ECC — Known Limitations (Phase 6)
 
+> **Status update — 26 August 2026.** This page records the Phase 6 gap list.
+> The Dynamic Compliance Engine has since resolved several of the items
+> below. The historical text is kept intact; this table is the current truth.
+>
+> | Phase 6 gap | Status now |
+> |---|---|
+> | #1 Import does not resolve/create the parent `ComplianceNode` chain | **Resolved** — import creates the full path; one row = one hierarchy path, parents reused. ECC template verified at 5 levels / 19 columns |
+> | #5 Hierarchy-grouped dashboard and report metrics not built | **Resolved** — grouping is driven by `appears_in_dashboard` / `appears_in_reports` per level |
+> | #6 Full ECC XLSX Playwright journey | **Resolved** — `dynamic-xlsx/template-depth.spec.ts`, 7 tests |
+> | #7 Hierarchy split across two models (`ComplianceNode` + `Standard`) | **Resolved** — `ComplianceNode` is the single authoritative model; `standards` holds 0 rows and the legacy path is retired |
+> | #8 `HierarchyExplorerView.vue` intentionally minimal | **Resolved** — Structure Settings supports add/rename/reorder/disable/remove with impact preview; nodes support edit and archive |
+> | #2 Content-version comparison reporting | Still open |
+> | #3 Not-Applicable process | Still deferred by explicit instruction |
+> | #4 No approved ECC scoring formula | Still open — a business decision, not an engineering gap |
+> | #6 SLA time-travel and responsive tests | Still open |
+>
+> Current documentation: [`../../dynamic-compliance-structure.md`](../../dynamic-compliance-structure.md)
+> · [`../../dynamic-xlsx-engine.md`](../../dynamic-xlsx-engine.md)
+
 Honest gap list this phase's final report points to.
 
 ## The generic-engine correction found and fixed this phase

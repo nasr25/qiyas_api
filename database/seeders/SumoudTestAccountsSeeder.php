@@ -6,6 +6,7 @@ use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\ProgramUserRole;
 use App\Models\User;
+use Database\Seeders\Concerns\NonProductionSeeder;
 use Illuminate\Database\Seeder;
 
 /**
@@ -35,6 +36,8 @@ use Illuminate\Database\Seeder;
  */
 class SumoudTestAccountsSeeder extends Seeder
 {
+    use NonProductionSeeder;
+
     private const PASSWORD = 'Password123!';
 
     public static function usernames(): array
@@ -48,6 +51,8 @@ class SumoudTestAccountsSeeder extends Seeder
 
     public function run(): void
     {
+        $this->guardAgainstProduction();
+
         $sumoud = ComplianceProgram::where('code', 'SUMOUD')->first();
         $qiyas = ComplianceProgram::where('code', 'QIYAS')->first();
         if (! $sumoud) {

@@ -4,7 +4,7 @@
 
 | Layer | Mechanism | Governs |
 |---|---|---|
-| Platform-level | Global `spatie/laravel-permission` roles (`super-admin`, `executive`, plus legacy `qiyas-admin`/`auditor`/`coordinator`/`employee`) | Every pre-existing route (`/cycles`, `/standards`, `/documents`, `/admin/*`, `/reports/*`, ...) |
+| Platform-level | Global `spatie/laravel-permission` roles (`super-admin`, `executive`, plus legacy `qiyas-admin`/`auditor`/`coordinator`/`employee`) | Platform routes (`/cycles`, `/admin/*`, `/reports/*`, ...). **`/standards` and `/documents` no longer exist** — they were removed with the legacy authoring path; compliance content lives under `/programs/{program}/hierarchy` |
 | Program-level | `program_user_roles` table, `role_key` string | `/api/v1/programs/*` — program access, and (via `department_id`) department scoping inside a program |
 
 Both layers are active simultaneously in Phase 1. See

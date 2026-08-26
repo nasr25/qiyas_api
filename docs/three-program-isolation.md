@@ -7,7 +7,7 @@ simultaneously, not a new mechanism.
 
 ## Data-layer isolation
 
-Unchanged: FK-derived program scoping (`Standard::creating()` derives
+Unchanged: FK-derived program scoping (`ComplianceNode` derives
 `compliance_program_id` from `cycle_id`) makes cross-program hierarchy
 contamination structurally impossible, for both the two-level
 (Qiyas/Sumoud) and four-level (ECC, via `ComplianceNode`) shapes.

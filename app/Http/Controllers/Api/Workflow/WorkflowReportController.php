@@ -32,7 +32,7 @@ class WorkflowReportController extends Controller
             ->get();
 
         return response()->json(['success' => true, 'data' => $assignments->map(fn ($a) => [
-            'requirement' => ['code' => $a->requirement->standard_number, 'name' => $a->requirement->name],
+            'requirement' => ['code' => $a->requirement->code, 'name' => $a->requirement->name],
             'department' => $a->department->name,
             'employee' => $a->employee?->name,
             'status' => $a->displayStatus(),
@@ -54,7 +54,7 @@ class WorkflowReportController extends Controller
             ->get();
 
         return response()->json(['success' => true, 'data' => $breaches->map(fn ($s) => [
-            'requirement' => $s->assignment ? $s->assignment->requirement->standard_number : null,
+            'requirement' => $s->assignment ? $s->assignment->requirement->code : null,
             'department' => $s->assignment?->department?->name,
             'stage' => $s->stage,
             'started_at' => $s->started_at->toIso8601String(),
@@ -76,7 +76,7 @@ class WorkflowReportController extends Controller
             ->latest('requested_at')->get();
 
         return response()->json(['success' => true, 'data' => $extensions->map(fn ($e) => [
-            'requirement' => $e->assignment?->requirement?->standard_number,
+            'requirement' => $e->assignment?->requirement?->code,
             'department' => $e->assignment?->department?->name,
             'requested_by' => $e->requester?->name,
             'current_due_date' => $e->current_due_date?->toDateString(),

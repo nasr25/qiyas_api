@@ -6,7 +6,6 @@ use App\Exports\DepartmentProgressExport;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCycle;
 use App\Models\Department;
-use App\Models\Document;
 use App\Services\AuditService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -67,11 +66,7 @@ class ExportController extends Controller
         $request->validate(['cycle_id' => ['required', 'exists:assessment_cycles,id']]);
         $cycle = AssessmentCycle::with('standards')->findOrFail($request->cycle_id);
 
-        $docStats = Document::where('cycle_id', $cycle->id)
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
+        $docStats = app(EvidenceStatusCounts::class)->for(['cycle_id' => $cycle->id]);
 
         AuditService::log('report.export', "Cycle summary PDF export for cycle #{$cycle->id}");
 

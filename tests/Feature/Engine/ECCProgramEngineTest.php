@@ -9,6 +9,7 @@ use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Services\ComplianceNodeService;
 use App\Services\ExtensionService;
+use App\Services\HierarchyDefinitionService;
 use App\Services\ProgramConfigurationService;
 use App\Services\WorkflowService;
 use Database\Seeders\ECCProgramConfigurationSeeder;
@@ -25,7 +26,8 @@ use Tests\Feature\Workflow\WorkflowTestCase;
  * exists. The four-level hierarchy (domain -> subdomain -> control ->
  * subcontrol) is real, validated, and bridges into the exact same
  * WorkflowService/ExtensionService/SlaService the Qiyas/Sumoud tests
- * exercise, via ComplianceNode::standard_id.
+ * exercise. The standards mirror was removed in the dynamic-hierarchy
+ * phase — the node IS the requirement now.
  */
 class ECCProgramEngineTest extends WorkflowTestCase
 {
@@ -65,6 +67,16 @@ class ECCProgramEngineTest extends WorkflowTestCase
         ]);
 
         $nodes = app(ComplianceNodeService::class);
+        // The program's structure, activated through the same service a
+        // Program Manager uses. Assignability/evidence are level
+        // properties now, not implied by depth (audit finding H7).
+        $this->activateStructure($this->ecc, [
+            ['key' => 'domain'],
+            ['key' => 'subdomain'],
+            ['key' => 'control', 'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+            ['key' => 'subcontrol', 'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+        ], $this->superAdmin);
+
         $this->domain = $nodes->createNode($this->ecc, 'domain', 'D1', 'مجال تجريبي', null, $this->eccCycle, $this->contentVersion, $this->superAdmin);
         $this->subdomain = $nodes->createNode($this->ecc, 'subdomain', 'D1-S1', 'مجال فرعي تجريبي', $this->domain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
     }
@@ -101,8 +113,17 @@ class ECCProgramEngineTest extends WorkflowTestCase
         $this->assertSame(1, $this->subdomain->level);
         $this->assertSame(2, $control->level);
         $this->assertSame(3, $subcontrol->level);
-        $this->assertNotNull($control->standard_id, 'An assessable node must bridge into standards.');
-        $this->assertNotNull($subcontrol->standard_id);
+        // Mirror removal (audit finding C2): an assessable node is no longer
+        // copied into `standards`. It IS the requirement, and — unlike the
+        // mirror — it keeps its whole ancestor chain rather than the first
+        // two levels.
+        $this->assertNull($control->standard_id, 'The standards mirror must no longer be written.');
+        $this->assertNull($subcontrol->standard_id);
+        $this->assertSame(
+            ['D1', 'D1-S1', 'D1-S1-C1', 'D1-S1-C1-SC1'],
+            array_column($subcontrol->pathLabels(), 'code'),
+            'The full four-level path must survive; the old mirror kept only two.',
+        );
     }
 
     public function test_invalid_parent_child_type_pairs_are_rejected(): void
@@ -152,19 +173,34 @@ class ECCProgramEngineTest extends WorkflowTestCase
         $nodes->createNode($this->ecc, 'subdomain', 'CROSS-2', 'خطأ عبر برامج', $this->domain, $sumoudCycle, $this->contentVersion, $this->superAdmin);
     }
 
-    public function test_maximum_configured_depth_is_enforced(): void
+    /**
+     * Depth is now bounded by the program's own structure — the number of
+     * level definitions — rather than by a separate `max_depth` number in a
+     * configuration blob that could drift out of sync with the level list
+     * (audit finding H4). A node type that the structure does not define
+     * cannot be created at all.
+     */
+    public function test_depth_is_bounded_by_the_programs_own_structure(): void
     {
-        app(ProgramConfigurationService::class)->set($this->ecc, 'hierarchy', [
-            'levels' => [
-                ['node_type' => 'domain', 'label_ar' => 'م', 'label_en' => 'D', 'parent_type' => null, 'is_assessable' => false],
-                ['node_type' => 'subdomain', 'label_ar' => 'ف', 'label_en' => 'S', 'parent_type' => 'domain', 'is_assessable' => true],
-            ],
-            'max_depth' => 1,
-        ], $this->superAdmin);
-
         $nodes = app(ComplianceNodeService::class);
+
+        $this->assertCount(4, app(HierarchyDefinitionService::class)->levels($this->ecc));
+
         $this->expectException(InvalidHierarchyException::class);
-        $nodes->createNode($this->ecc, 'subdomain', 'DEPTH-1', 'تجاوز العمق', $this->domain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
+        $nodes->createNode($this->ecc, 'a_fifth_level', 'DEPTH-1', 'تجاوز العمق', $this->subdomain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
+    }
+
+    /** A level may only ever parent the level the structure says it parents. */
+    public function test_a_node_cannot_be_nested_below_the_deepest_defined_level(): void
+    {
+        $nodes = app(ComplianceNodeService::class);
+
+        $control = $nodes->createAssessableNode($this->ecc, 'control', 'DEEP-C1', 'ضابط', $this->subdomain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
+        $subcontrol = $nodes->createAssessableNode($this->ecc, 'subcontrol', 'DEEP-SC1', 'ضابط فرعي', $control, $this->eccCycle, $this->contentVersion, $this->superAdmin);
+
+        // 'subcontrol' is the deepest level; nothing may sit beneath it.
+        $this->expectException(InvalidHierarchyException::class);
+        $nodes->createAssessableNode($this->ecc, 'subcontrol', 'DEEP-SC2', 'أعمق', $subcontrol, $this->eccCycle, $this->contentVersion, $this->superAdmin);
     }
 
     public function test_duplicate_codes_are_rejected_within_the_same_content_version(): void
@@ -208,7 +244,7 @@ class ECCProgramEngineTest extends WorkflowTestCase
         $control = $nodes->createAssessableNode($this->ecc, 'control', 'D1-S1-C1', 'ضابط تجريبي', $this->subdomain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($control->standard, $this->ecc, $eccPm, $deptA, $employee, '2026-12-01', null, null, null);
+        $assignment = $workflow->assign($control, $this->ecc, $eccPm, $deptA, $employee, '2026-12-01', null, null, null);
         $submission = $workflow->getOrCreateDraft($assignment, $employee);
         $workflow->addFile($submission, UploadedFile::fake()->create('e.pdf', 10, 'application/pdf'), $employee);
         $submission = $workflow->submit($submission, $employee, null);
@@ -238,7 +274,7 @@ class ECCProgramEngineTest extends WorkflowTestCase
         $control = $nodes->createAssessableNode($this->ecc, 'control', 'D1-S1-C2', 'ضابط تجريبي 2', $this->subdomain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($control->standard, $this->ecc, $eccPm, $deptA, $employee, '2026-12-01', null, null, null);
+        $assignment = $workflow->assign($control, $this->ecc, $eccPm, $deptA, $employee, '2026-12-01', null, null, null);
         $submission = $workflow->getOrCreateDraft($assignment, $employee);
         $workflow->addFile($submission, UploadedFile::fake()->create('e.pdf', 10, 'application/pdf'), $employee);
         $submission = $workflow->submit($submission, $employee, null);
@@ -266,7 +302,7 @@ class ECCProgramEngineTest extends WorkflowTestCase
         $control = $nodes->createAssessableNode($this->ecc, 'control', 'D1-S1-C3', 'ضابط تجريبي 3', $this->subdomain, $this->eccCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($control->standard, $this->ecc, $eccPm, $deptA, $employee, now()->addDays(5)->toDateString(), null, null, null);
+        $assignment = $workflow->assign($control, $this->ecc, $eccPm, $deptA, $employee, now()->addDays(5)->toDateString(), null, null, null);
         $extension = app(ExtensionService::class)->request($assignment, $employee, now()->addDays(20)->toDateString(), 'سبب.');
 
         $this->assertTrue(Gate::forUser($eccAuditor)->allows('decide', $extension));

@@ -70,7 +70,7 @@ extension). See `tests/Feature/Admin/PlatformAdministrationTest.php`.
 
 ## Import files (XLSX)
 
-`maatwebsite/excel` reads the workbook; `QiyasImportValidator`
+`maatwebsite/excel` reads the workbook; `HierarchyImportValidator`
 additionally inspects the ZIP container for `xl/vbaProject.bin`
 (detects a `.xlsm` macro workbook renamed to `.xlsx`) on both the
 preview and confirm steps — a real defect found and fixed in the Phase

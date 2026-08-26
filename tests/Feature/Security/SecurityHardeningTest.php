@@ -95,7 +95,7 @@ class SecurityHardeningTest extends WorkflowTestCase
 
         $file = new UploadedFile($zipPath, 'renamed-macro-workbook.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
-        $response = $this->postJson('/api/v1/programs/QIYAS/requirements-import/preview', [
+        $response = $this->postJson('/api/v1/programs/QIYAS/hierarchy-import/preview', [
             'file' => $file,
             'cycle_id' => $this->cycle->id,
         ], $this->authHeader($this->programManager))->assertOk();

@@ -18,7 +18,7 @@ class RequirementAssignmentTest extends WorkflowTestCase
             ->assertJsonPath('data.department.id', $this->deptA->id);
 
         $this->assertDatabaseHas('requirement_assignments', [
-            'requirement_id' => $this->requirement->id, 'department_id' => $this->deptA->id, 'status' => 'active',
+            'compliance_node_id' => $this->requirement->id, 'department_id' => $this->deptA->id, 'status' => 'active',
         ]);
     }
 

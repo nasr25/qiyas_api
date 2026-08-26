@@ -63,8 +63,9 @@ This means every one of `WorkflowService`, `RequirementAssignmentController`,
 `EvidenceSubmissionController`, `DepartmentManagerReviewController`,
 `AuditorReviewController`, `ProgramManagerReviewController`, `SlaService`,
 `ExtensionService`, the notification pipeline, `DashboardMetricsService`,
-the report controllers, and `QiyasRequirementsTemplateExport` (its
-"Qiyas" naming remains a cosmetic debt, unchanged) works for an ECC
+the report controllers, and the XLSX template export (since renamed to
+`App\Exports\Hierarchy\HierarchyTemplateExport`, retiring the cosmetic
+"Qiyas" naming debt noted here) works for an ECC
 Control with **zero code changes** — confirmed by the full ECC Playwright
 lifecycle passing through the exact same
 `RequirementAssignmentsView.vue`/`MyRequirementDetailView.vue`/

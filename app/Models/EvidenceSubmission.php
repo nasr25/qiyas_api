@@ -20,7 +20,7 @@ class EvidenceSubmission extends Model
     ];
 
     protected $fillable = [
-        'compliance_program_id', 'program_cycle_id', 'requirement_id', 'requirement_assignment_id',
+        'compliance_program_id', 'program_cycle_id', 'compliance_node_id', 'requirement_assignment_id',
         'department_id', 'submitted_by', 'version_number', 'status', 'current_stage',
         'employee_comment', 'submitted_at', 'returned_at', 'approved_at',
     ];
@@ -46,9 +46,15 @@ class EvidenceSubmission extends Model
         return $this->belongsTo(AssessmentCycle::class, 'program_cycle_id');
     }
 
+    /** The assessable node this evidence belongs to — see RequirementAssignment::requirement(). */
     public function requirement()
     {
-        return $this->belongsTo(Standard::class, 'requirement_id');
+        return $this->belongsTo(ComplianceNode::class, 'compliance_node_id');
+    }
+
+    public function node()
+    {
+        return $this->belongsTo(ComplianceNode::class, 'compliance_node_id');
     }
 
     public function assignment()

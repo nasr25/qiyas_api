@@ -3,11 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\ProgramUserRole;
-use App\Models\Standard;
 use App\Models\User;
+use App\Services\HierarchyDefinitionService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -204,28 +205,49 @@ class ComplianceProgramAccessTest extends TestCase
 
     // ── Data preserved after migration ─────────────────────────────────────
 
-    public function test_existing_qiyas_records_remain_accessible_after_migration(): void
+    /**
+     * The program-scoped requirements list now serves ComplianceNodes rather
+     * than Standards (mirror removal): only nodes on an assessable level are
+     * requirements, and each carries its full path instead of a fixed
+     * domain/category pair.
+     */
+    public function test_program_requirements_list_serves_assessable_nodes(): void
     {
         $admin = $this->makeUser('super-admin');
 
         $cycle = AssessmentCycle::create([
             'compliance_program_id' => $this->qiyas->id,
-            'name' => 'Legacy Cycle', 'year' => 2026,
+            'name' => 'Cycle', 'year' => 2026,
             'start_date' => '2026-01-01', 'end_date' => '2026-12-31',
             'status' => 'active', 'is_current' => true, 'created_by' => $admin->id,
         ]);
 
-        $standard = Standard::create([
-            'cycle_id' => $cycle->id, 'standard_number' => 'X.1',
-            'name_ar' => 'معيار', 'name_en' => 'Standard', 'is_active' => true,
+        $this->activateStructure($this->qiyas, [
+            ['key' => 'group'],
+            ['key' => 'requirement', 'is_assessable' => true, 'is_assignable' => true, 'accepts_evidence' => true],
+        ], $admin);
+
+        $levels = collect(app(HierarchyDefinitionService::class)->levels($this->qiyas))->values();
+
+        $group = ComplianceNode::create([
+            'compliance_program_id' => $this->qiyas->id, 'program_cycle_id' => $cycle->id,
+            'hierarchy_level_id' => $levels[0]->id, 'node_type' => $levels[0]->key,
+            'level' => 0, 'code' => 'G.1', 'name_ar' => 'مجموعة',
+        ]);
+        ComplianceNode::create([
+            'compliance_program_id' => $this->qiyas->id, 'program_cycle_id' => $cycle->id,
+            'hierarchy_level_id' => $levels[1]->id, 'parent_id' => $group->id,
+            'node_type' => $levels[1]->key, 'level' => 1, 'code' => 'X.1', 'name_ar' => 'معيار',
         ]);
 
-        // Auto-stamped by the model's creating hook, not passed explicitly.
-        $this->assertEquals($this->qiyas->id, $standard->fresh()->compliance_program_id);
-
-        $this->getJson('/api/v1/programs/QIYAS/requirements', $this->authHeader($admin))
+        $response = $this->getJson('/api/v1/programs/QIYAS/requirements', $this->authHeader($admin))
             ->assertOk()
             ->assertJsonFragment(['number' => 'X.1']);
+
+        // The grouping node is not a requirement and must not be listed.
+        $this->assertSame(['X.1'], collect($response->json('data'))->pluck('number')->all());
+        // And the row carries its whole path, not a two-column projection.
+        $this->assertCount(2, $response->json('data.0.path'));
     }
 
     // ── Audit log program context ──────────────────────────────────────────

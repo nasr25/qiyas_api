@@ -1,5 +1,27 @@
 # NDMO — Known Limitations (Phase 7)
 
+> **Status update — 26 August 2026.** This page records the Phase 7 gap list.
+> The Dynamic Compliance Engine has since resolved several of the items
+> below. The historical text is kept intact; this table is the current truth.
+>
+> | Phase 7 gap | Status now |
+> |---|---|
+> | #1 Import does not resolve/create the `ComplianceNode` chain — *"the platform's most important remaining engine gap"* | **Resolved** — this was the gap the dynamic engine was built to close. NDMO imports and exports at its full 6-level depth (22 columns) |
+> | #7 Domain/Policy/Standard-grouped dashboard and report metrics | **Resolved** — grouping is per-level and configuration-driven |
+> | #8 Full NDMO XLSX Playwright journey | **Resolved** — `dynamic-xlsx/template-depth.spec.ts`, 7 tests, including old-template rejection |
+> | #9 Occasional full-suite Playwright timeout under contention | **Resolved** — diagnosed as a threshold, not a defect; `timeout` raised to 60 s with no assertion relaxed. Two consecutive clean runs at 231/231 |
+> | #2 Content-version comparison reporting | Still open |
+> | #3 Not-Applicable process and assessment-result model | Still deferred by explicit instruction |
+> | #4 No approved NDMO scoring formula | Still open — a business decision |
+> | #5 Data-classification metadata unpopulated | Still open |
+> | #6 Responsibility removal has no frontend control | Still open |
+> | #8 SLA time-travel and responsive tests | Still open |
+>
+> NDMO is also the program on which the audit proved the old engine's silent
+> path truncation (finding C2). It now runs at its full depth.
+>
+> Current documentation: [`../../dynamic-compliance-structure.md`](../../dynamic-compliance-structure.md)
+
 ## The generic-engine correction confirmed this phase (finding no new gap is itself a finding)
 
 The mandatory pre-implementation analysis (re-running Qiyas/Sumoud/ECC

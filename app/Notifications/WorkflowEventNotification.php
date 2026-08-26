@@ -91,7 +91,7 @@ class WorkflowEventNotification extends Notification implements ShouldQueue
             'department_name' => $department?->name ?? '',
             'program_name' => $program?->name ?? '',
             'cycle_name' => $cycle?->name ?? '',
-            'requirement_code' => $requirement?->standard_number ?? '',
+            'requirement_code' => $requirement?->code ?? '',
             'requirement_name' => $requirement?->name ?? '',
             'current_status' => $submission?->status ?? 'assigned',
             'due_date' => optional($assignment->original_due_date)->toDateString() ?? '',

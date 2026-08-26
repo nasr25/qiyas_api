@@ -41,8 +41,8 @@ class VerifyCrossProgramIntegrity extends Command
             ->count();
 
         $assignmentsForeignRequirement = RequirementAssignment::query()
-            ->join('standards', 'requirement_assignments.requirement_id', '=', 'standards.id')
-            ->whereColumn('requirement_assignments.compliance_program_id', '!=', 'standards.compliance_program_id')
+            ->join('compliance_nodes', 'requirement_assignments.compliance_node_id', '=', 'compliance_nodes.id')
+            ->whereColumn('requirement_assignments.compliance_program_id', '!=', 'compliance_nodes.compliance_program_id')
             ->count();
 
         $assignmentsForeignCycle = RequirementAssignment::query()
@@ -84,9 +84,12 @@ class VerifyCrossProgramIntegrity extends Command
             ->join('assessment_cycles', 'compliance_nodes.program_cycle_id', '=', 'assessment_cycles.id')
             ->whereColumn('compliance_nodes.compliance_program_id', '!=', 'assessment_cycles.compliance_program_id')
             ->count();
-        $standardsForeignNode = Standard::query()
-            ->join('compliance_nodes', 'standards.compliance_node_id', '=', 'compliance_nodes.id')
-            ->whereColumn('standards.compliance_program_id', '!=', 'compliance_nodes.compliance_program_id')
+        // The standards<->node mirror was removed, so there is no longer a
+        // link between the two that could cross programs (audit finding C2).
+        // Evidence is checked against its node instead.
+        $submissionsForeignNode = EvidenceSubmission::query()
+            ->join('compliance_nodes', 'evidence_submissions.compliance_node_id', '=', 'compliance_nodes.id')
+            ->whereColumn('evidence_submissions.compliance_program_id', '!=', 'compliance_nodes.compliance_program_id')
             ->count();
 
         $checks = [
@@ -98,7 +101,7 @@ class VerifyCrossProgramIntegrity extends Command
             ['Program memberships referencing a nonexistent program', $membershipsOrphanedProgram],
             ['Hierarchy nodes linked to a parent owned by a different program', $nodesForeignParent],
             ['Hierarchy nodes linked to a cycle owned by a different program', $nodesForeignCycle],
-            ['Standards bridged to a hierarchy node owned by a different program', $standardsForeignNode],
+            ['Evidence linked to a hierarchy node owned by a different program', $submissionsForeignNode],
         ];
 
         foreach ($checks as [$label, $count]) {

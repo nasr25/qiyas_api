@@ -20,7 +20,7 @@ portion specifically.
   `xml`, `ctype`, `json`, `bcmath`, `fileinfo` (used directly by the
   evidence-upload MIME check — see `docs/qiyas-security-review.md`), `zip`
   (used directly by the XLSX macro-detection check —
-  `QiyasImportValidator::isMacroEnabledWorkbook()`), `gd` or `intl` if PDF
+  `HierarchyImportValidator::isMacroEnabledWorkbook()`), `gd` or `intl` if PDF
   export features are used (`barryvdh/laravel-dompdf` is a dependency).
 - MySQL 8 (can be on the same host or a separate DB server reachable from
   IIS).
@@ -94,7 +94,7 @@ exists and matches this shape):
 `php.ini` must allow at least the platform's own configured evidence-upload
 limits (Super Admin-configurable, default 20 MB/file, 100 MB/submission
 total — see `docs/qiyas-role-permissions.md`) and the XLSX import limit
-(10 MB, hardcoded in `QiyasImportController::preview()`):
+(10 MB, hardcoded in `HierarchyImportController::preview()`):
 
 ```ini
 upload_max_filesize = 25M

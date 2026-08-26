@@ -17,7 +17,6 @@ class ExtensionRequestResource extends JsonResource
             'status' => $this->status,
             'reviewer_notes' => $this->reviewer_notes,
             'reviewed_at' => $this->reviewed_at?->toIso8601String(),
-            'document' => new DocumentResource($this->whenLoaded('document')),
             'requester' => $this->whenLoaded('requester', fn () => [
                 'id' => $this->requester->id,
                 'name' => $this->requester->name,

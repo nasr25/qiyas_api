@@ -66,6 +66,17 @@ class NDMOProgramEngineTest extends WorkflowTestCase
         ]);
 
         $nodes = app(ComplianceNodeService::class);
+        // The program's structure, activated through the same service a
+        // Program Manager uses. Assignability/evidence are level
+        // properties now, not implied by depth (audit finding H7).
+        $this->activateStructure($this->ndmo, [
+            ['key' => 'domain'],
+            ['key' => 'policy'],
+            ['key' => 'standard'],
+            ['key' => 'requirement', 'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+            ['key' => 'subrequirement', 'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+        ], $this->superAdmin);
+
         $this->domain = $nodes->createNode($this->ndmo, 'domain', 'D1', 'مجال تجريبي', null, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
         $this->policy = $nodes->createNode($this->ndmo, 'policy', 'D1-P1', 'سياسة تجريبية', $this->domain, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
         $this->standard = $nodes->createNode($this->ndmo, 'standard', 'D1-P1-S1', 'معيار تجريبي', $this->policy, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
@@ -105,8 +116,13 @@ class NDMOProgramEngineTest extends WorkflowTestCase
         $this->assertSame(2, $this->standard->level);
         $this->assertSame(3, $requirement->level);
         $this->assertSame(4, $subrequirement->level);
-        $this->assertNotNull($requirement->standard_id, 'An assessable node must bridge into standards.');
-        $this->assertNotNull($subrequirement->standard_id);
+        $this->assertNull($requirement->standard_id, 'The standards mirror must no longer be written.');
+        $this->assertNull($subrequirement->standard_id);
+        $this->assertSame(
+            ['D1', 'D1-P1', 'D1-P1-S1', 'D1-P1-S1-R1', 'D1-P1-S1-R1-SR1'],
+            array_column($subrequirement->pathLabels(), 'code'),
+            'All five NDMO levels must survive; the old mirror discarded levels 2 and 3.',
+        );
     }
 
     public function test_invalid_parent_child_type_pairs_are_rejected(): void
@@ -179,7 +195,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R2', 'متطلب تجريبي 2', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, $employee, '2026-12-01', null, null, null);
+        $assignment = $workflow->assign($requirement, $this->ndmo, $ndmoPm, $deptA, $employee, '2026-12-01', null, null, null);
         $submission = $workflow->getOrCreateDraft($assignment, $employee);
         $workflow->addFile($submission, UploadedFile::fake()->create('e.pdf', 10, 'application/pdf'), $employee);
         $submission = $workflow->submit($submission, $employee, null);
@@ -209,7 +225,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R3', 'متطلب تجريبي 3', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, $employee, '2026-12-01', null, null, null);
+        $assignment = $workflow->assign($requirement, $this->ndmo, $ndmoPm, $deptA, $employee, '2026-12-01', null, null, null);
         $submission = $workflow->getOrCreateDraft($assignment, $employee);
         $workflow->addFile($submission, UploadedFile::fake()->create('e.pdf', 10, 'application/pdf'), $employee);
         $submission = $workflow->submit($submission, $employee, null);
@@ -237,7 +253,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R4', 'متطلب تجريبي 4', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
 
         $workflow = app(WorkflowService::class);
-        $assignment = $workflow->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, $employee, now()->addDays(5)->toDateString(), null, null, null);
+        $assignment = $workflow->assign($requirement, $this->ndmo, $ndmoPm, $deptA, $employee, now()->addDays(5)->toDateString(), null, null, null);
         $extension = app(ExtensionService::class)->request($assignment, $employee, now()->addDays(20)->toDateString(), 'سبب.');
 
         $this->assertTrue(Gate::forUser($ndmoAuditor)->allows('decide', $extension));
@@ -256,7 +272,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
 
         $nodes = app(ComplianceNodeService::class);
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R5', 'متطلب تجريبي 5', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
-        $assignment = app(WorkflowService::class)->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
+        $assignment = app(WorkflowService::class)->assign($requirement, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
 
         $responsibility = app(ResponsibilityService::class)->assign($assignment, 'data_owner', $ndmoPm, $dataOwner);
         $this->assertTrue($responsibility->is_active);
@@ -276,7 +292,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
 
         $nodes = app(ComplianceNodeService::class);
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R6', 'متطلب تجريبي 6', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
-        $assignment = app(WorkflowService::class)->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
+        $assignment = app(WorkflowService::class)->assign($requirement, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
 
         $this->expectException(WorkflowConflictException::class);
         app(ResponsibilityService::class)->assign($assignment, 'not_a_real_type', $ndmoPm);
@@ -293,7 +309,7 @@ class NDMOProgramEngineTest extends WorkflowTestCase
 
         $nodes = app(ComplianceNodeService::class);
         $requirement = $nodes->createAssessableNode($this->ndmo, 'requirement', 'D1-P1-S1-R7', 'متطلب تجريبي 7', $this->standard, $this->ndmoCycle, $this->contentVersion, $this->superAdmin);
-        $assignment = app(WorkflowService::class)->assign($requirement->standard, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
+        $assignment = app(WorkflowService::class)->assign($requirement, $this->ndmo, $ndmoPm, $deptA, null, '2026-12-01', null, null, null);
         app(ResponsibilityService::class)->assign($assignment, 'data_owner', $ndmoPm, $dataOwner);
 
         // Despite being the assignment's Data Owner, this user has no

@@ -102,8 +102,8 @@ class VerifyQiyasDataIntegrity extends Command
         // two through.
         $duplicateActiveAssignments = RequirementAssignment::where('compliance_program_id', $programId)
             ->where('status', 'active')
-            ->selectRaw('requirement_id, COUNT(*) as c')
-            ->groupBy('requirement_id')
+            ->selectRaw('compliance_node_id, COUNT(*) as c')
+            ->groupBy('compliance_node_id')
             ->havingRaw('COUNT(*) > 1')
             ->get()->count();
 
@@ -177,7 +177,7 @@ class VerifyQiyasDataIntegrity extends Command
 
         return [
             ['Assignments with dangling department_id', $assignmentsBadDept, $assignmentsBadDept === 0],
-            ['Assignments with dangling requirement_id', $assignmentsBadRequirement, $assignmentsBadRequirement === 0],
+            ['Assignments with dangling compliance_node_id', $assignmentsBadRequirement, $assignmentsBadRequirement === 0],
             ['Submissions without a parent assignment', $submissionsWithoutAssignment, $submissionsWithoutAssignment === 0],
             ['Evidence files without a parent submission', $filesWithoutSubmission, $filesWithoutSubmission === 0],
             ['Decisions without a parent submission', $decisionsWithoutSubmission, $decisionsWithoutSubmission === 0],

@@ -43,6 +43,6 @@ class DashboardMetricsService
 
     public function assignedRequirementIds(ComplianceProgram $program): Collection
     {
-        return RequirementAssignment::forProgram($program)->active()->pluck('requirement_id');
+        return RequirementAssignment::forProgram($program)->active()->pluck('compliance_node_id');
     }
 }

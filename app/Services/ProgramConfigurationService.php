@@ -167,16 +167,6 @@ class ProgramConfigurationService
                 'types.*.label_ar' => ['required', 'string', 'max:100'],
                 'types.*.label_en' => ['required', 'string', 'max:100'],
             ],
-            'import' => [
-                'program_code' => ['required', 'string', 'max:20'],
-                'template_version' => ['required', 'string', 'max:30'],
-                'schema_version' => ['sometimes', 'string', 'max:10'],
-                'columns' => ['required', 'array', 'min:1'],
-                'columns.*.key' => ['required', 'string', 'regex:/^[a-z_]+$/'],
-                'columns.*.label_ar' => ['required', 'string', 'max:100'],
-                'columns.*.label_en' => ['required', 'string', 'max:100'],
-                'columns.*.required' => ['sometimes', 'boolean'],
-            ],
             default => null, // No category-specific schema yet — fall through to the generic guard below.
         };
 

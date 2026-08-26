@@ -9,19 +9,18 @@ use App\Models\ComplianceContentVersion;
 use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\User;
+use App\Services\AuditService;
 use App\Services\ComplianceNodeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Generic, arbitrary-depth hierarchy management — used by ECC (four
- * levels: domain/subdomain/control/subcontrol) but not specific to it: any
- * program that configures a `hierarchy` program-configuration category can
- * use these same endpoints. Qiyas/Sumoud do not configure this category
- * and continue managing their two-level (Perspective/Axis) hierarchy
- * through the existing /cycles/{cycle}/standards routes — this controller
- * does not replace that, it adds support for deeper hierarchies. See
- * docs/programs/ecc/hierarchy.md.
+ * Generic, arbitrary-depth hierarchy authoring — the ONLY way compliance
+ * content is created in the platform. Every program uses these endpoints at
+ * whatever depth its structure defines; there is no per-program variant and
+ * no legacy Standard path any more.
+ *
+ * See docs/dynamic-compliance-structure.md.
  */
 class ComplianceHierarchyController extends Controller
 {
@@ -40,7 +39,8 @@ class ComplianceHierarchyController extends Controller
     {
         $program = $this->program($request);
 
-        $query = ComplianceNode::forProgram($program)->with('standard');
+        $query = ComplianceNode::forProgram($program)->with('hierarchyLevel')
+            ->where('status', '!=', 'archived');
         if ($request->filled('parent_id')) {
             $query->where('parent_id', $request->parent_id);
         } else {
@@ -128,6 +128,113 @@ class ComplianceHierarchyController extends Controller
         return response()->json(['success' => true, 'data' => $this->summarize($node)], 201);
     }
 
+    /** PUT /api/v1/programs/{program}/hierarchy/{node} */
+    public function update(Request $request, string $program, int|string $node): JsonResponse
+    {
+        $resolved = $this->program($request);
+        $this->authorizeManage($request->user(), $resolved);
+        $model = $this->findScoped($resolved, $node);
+
+        // Only fields the node's LEVEL enables may be written — the same
+        // rule the dynamic form renders from, enforced on the backend.
+        $level = $model->hierarchyLevel;
+        $data = $request->validate([
+            'name_ar' => ['sometimes', 'string', 'max:500'],
+            'name_en' => ['nullable', 'string', 'max:500'],
+            'code' => ['sometimes', 'string', 'max:100'],
+            'description_ar' => ['nullable', 'string'],
+            'description_en' => ['nullable', 'string'],
+            'objective_ar' => ['nullable', 'string'],
+            'objective_en' => ['nullable', 'string'],
+            'guidance_ar' => ['nullable', 'string'],
+            'weight' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'default_due_date' => ['nullable', 'date'],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
+        ]);
+
+        foreach ([
+            'description_ar' => 'description_enabled', 'description_en' => 'description_enabled',
+            'objective_ar' => 'objective_enabled', 'objective_en' => 'objective_enabled',
+            'guidance_ar' => 'instructions_enabled',
+            'weight' => 'weight_enabled', 'default_due_date' => 'due_date_enabled',
+        ] as $field => $flag) {
+            if (array_key_exists($field, $data) && $level && ! $level->{$flag}) {
+                unset($data[$field]);
+            }
+        }
+
+        $old = $model->only(array_keys($data));
+        $model->update([...$data, 'updated_by' => $request->user()->id]);
+
+        AuditService::log(
+            'compliance_node.updated',
+            "Hierarchy node '{$model->code}' updated",
+            $model, $old, $model->fresh()->only(array_keys($data)), $resolved->id,
+        );
+
+        return response()->json(['success' => true, 'data' => $this->summarize($model->fresh())]);
+    }
+
+    /**
+     * POST /api/v1/programs/{program}/hierarchy/{node}/archive
+     *
+     * Archiving rather than deleting: a node may already carry assignments
+     * and evidence, and destroying that history to tidy a tree would be the
+     * wrong trade. Archived nodes drop out of authoring lists but remain
+     * resolvable from existing records.
+     */
+    public function archive(Request $request, string $program, int|string $node): JsonResponse
+    {
+        $resolved = $this->program($request);
+        $this->authorizeManage($request->user(), $resolved);
+        $model = $this->findScoped($resolved, $node);
+
+        if ($model->children()->where('status', '!=', 'archived')->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Archive or move this node\'s children first.',
+            ], 422);
+        }
+
+        $model->update(['status' => 'archived', 'archived_at' => now(), 'updated_by' => $request->user()->id]);
+
+        AuditService::log(
+            'compliance_node.archived',
+            "Hierarchy node '{$model->code}' archived",
+            $model, complianceProgramId: $resolved->id,
+        );
+
+        return response()->json(['success' => true, 'data' => $this->summarize($model->fresh())]);
+    }
+
+    /** GET /api/v1/programs/{program}/hierarchy/search?q=&cycle_id= */
+    public function search(Request $request): JsonResponse
+    {
+        $program = $this->program($request);
+        $term = trim((string) $request->query('q', ''));
+
+        if ($term === '') {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $nodes = ComplianceNode::forProgram($program)
+            ->when($request->filled('cycle_id'), fn ($q) => $q->where('program_cycle_id', $request->query('cycle_id')))
+            ->where(fn ($q) => $q->where('code', 'like', "%{$term}%")
+                ->orWhere('name_ar', 'like', "%{$term}%")
+                ->orWhere('name_en', 'like', "%{$term}%"))
+            ->with('hierarchyLevel')
+            ->orderBy('level')->orderBy('code')
+            ->limit(50)->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $nodes->map(fn (ComplianceNode $n) => [
+                ...$this->summarize($n),
+                'path' => $n->breadcrumb(),
+            ])->values(),
+        ]);
+    }
+
     /** GET /api/v1/programs/{program}/content-versions */
     public function contentVersions(Request $request): JsonResponse
     {
@@ -150,9 +257,18 @@ class ComplianceHierarchyController extends Controller
             'code' => $node->code,
             'name_ar' => $node->name_ar,
             'name_en' => $node->name_en,
-            'is_assessable' => $node->is_assessable,
+            'name' => $node->name,
+            'level_key' => $node->hierarchyLevel?->key,
+            'level_name' => $node->hierarchyLevel?->name,
+            'description_ar' => $node->description_ar,
+            'objective_ar' => $node->objective_ar,
+            'guidance_ar' => $node->guidance_ar,
+            'weight' => $node->weight,
+            'default_due_date' => $node->default_due_date?->toDateString(),
+            'is_assessable' => $node->isAssessable(),
+            'is_assignable' => $node->isAssignable(),
+            'accepts_evidence' => $node->acceptsEvidence(),
             'status' => $node->status,
-            'standard_id' => $node->standard_id,
             'children_count' => $node->children_count ?? null,
         ];
     }

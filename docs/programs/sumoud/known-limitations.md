@@ -1,5 +1,25 @@
 # Sumoud — Known Limitations (Phase 5)
 
+> **Status update — 26 August 2026.** This page records the Phase 5 gap list.
+> Several of the deferred items below no longer exist. The historical text is
+> kept intact; this table is the current truth.
+>
+> | Phase 5 deferred item | Status now |
+> |---|---|
+> | `StandardsView.vue` / `StandardDetailView.vue` still authorize via spatie roles directly | **Gone** — both views were deleted with the legacy authoring path |
+> | Hierarchy write routes `/cycles/{cycle}/standards`, `/standards/{standard}/requirements` | **Gone** — replaced by `/programs/{program}/hierarchy`, authorized by program role |
+> | Perspective/Axis remain free-text, not normalized entities | **Resolved** — levels are first-class configurable rows; Sumoud runs 3 levels, Qiyas 5, NDMO 6, TEST7 7 |
+> | `App\Exports\Qiyas\*` Qiyas-branded namespace (cosmetic debt) | **Gone** — replaced by `App\Exports\Hierarchy\*` |
+> | Full Sumoud XLSX Playwright journey | **Resolved** — Sumoud template verified at 3 levels / 14 columns; browser coverage in `dynamic-xlsx/template-depth.spec.ts` |
+> | `/reviews/auditor/extension-requests` URL not program-configurable | Still open |
+> | SLA time-travel tests, responsive tests, literal notification-content assertions | Still open |
+> | Cross-browser coverage beyond smoke | Firefox smoke passes 4/4; **WebKit remains Environment Blocked / Not Tested** |
+>
+> The engine defects listed under *"Real engine defects found and fixed this
+> phase"* remain fixed; nothing below was reintroduced.
+>
+> Current documentation: [`../../dynamic-compliance-structure.md`](../../dynamic-compliance-structure.md)
+
 Honest gap list this phase's final report points to.
 
 ## Real engine defects found and fixed this phase

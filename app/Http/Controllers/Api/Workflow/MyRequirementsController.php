@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Workflow;
 
 use App\Http\Controllers\Controller;
+use App\Models\ComplianceNode;
 use App\Models\RequirementAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,8 +34,10 @@ class MyRequirementsController extends Controller
             ->when($request->boolean('mine_only'), fn ($q) => $q->where('employee_id', $user->id));
 
         $query->when($request->cycle_id, fn ($q) => $q->where('program_cycle_id', $request->cycle_id))
-            ->when($request->perspective, fn ($q) => $q->whereHas('requirement', fn ($r) => $r->where('perspective', $request->perspective)))
-            ->when($request->axis, fn ($q) => $q->whereHas('requirement', fn ($r) => $r->where('axis', $request->axis)))
+            ->when($request->ancestor_id, fn ($q) => $q->whereIn(
+                'compliance_node_id',
+                ComplianceNode::subtreeIds((int) $request->ancestor_id),
+            ))
             ->when($request->due_date, fn ($q) => $q->whereDate('effective_due_date', $request->due_date))
             ->when($request->boolean('overdue'), fn ($q) => $q->whereDate('effective_due_date', '<', now()->toDateString())
                 ->whereDoesntHave('currentSubmission', fn ($s) => $s->where('status', 'approved')));
@@ -57,7 +60,17 @@ class MyRequirementsController extends Controller
             'success' => true,
             'data' => $filtered->map(fn (RequirementAssignment $a) => [
                 'id' => $a->id,
-                'requirement' => ['id' => $a->requirement->id, 'code' => $a->requirement->standard_number, 'name' => $a->requirement->name, 'perspective' => $a->requirement->perspective, 'axis' => $a->requirement->axis],
+                // `path` replaces the old fixed perspective/axis pair: it is
+                // the node's full ancestor chain at whatever depth this
+                // program configured, so no consumer may assume a length.
+                'requirement' => [
+                    'id' => $a->requirement->id,
+                    'code' => $a->requirement->code,
+                    'name' => $a->requirement->name,
+                    'level_key' => $a->requirement->hierarchyLevel?->key,
+                    'level_name' => $a->requirement->hierarchyLevel?->name,
+                    'path' => $a->requirement->breadcrumb(),
+                ],
                 'department' => $a->department->name,
                 'status' => $a->displayStatus(),
                 'effective_due_date' => $a->effective_due_date?->toDateString(),

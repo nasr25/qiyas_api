@@ -1,5 +1,15 @@
 # Compliance Engine — Coupling Analysis and Refactoring Plan (Phase 4)
 
+> **Status update — 26 August 2026.** This Phase 4 analysis called for
+> refactoring the Qiyas-named import/export path so a future program's XLSX
+> columns would come from configuration rather than new PHP classes. That
+> refactor happened, and was then superseded by something stronger: columns
+> now come from the program's **active structure version**, and the entire
+> `App\Exports\Qiyas\*` namespace plus `QiyasImportController` /
+> `QiyasImportService` / `QiyasImportValidator` have been **deleted**.
+> Current documentation: [`dynamic-xlsx-engine.md`](dynamic-xlsx-engine.md).
+
+
 Written **before** any Phase 4 code change, per the brief's mandatory
 analysis-first requirement. Every finding below is backed by a direct file
 reference, not an assumption — see the grep/read commands in this session

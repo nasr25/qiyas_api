@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
-use App\Models\Standard;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -112,60 +112,68 @@ class CycleService
     }
 
     /**
-     * Copies standards (and their evidence requirements) from one cycle to a new one.
-     * Used when creating a new cycle based on the previous year's standards.
+     * Deep-copies a cycle's hierarchy content into a new cycle.
      *
-     * @param  AssessmentCycle  $source  Source cycle
-     * @param  AssessmentCycle  $target  New cycle
-     * @return int Number of standards copied
+     * Replaces the legacy `copyStandards()`, which cloned `standards` rows.
+     * This preserves what actually matters in the dynamic engine: each
+     * node's level binding and its position in the parent chain, at whatever
+     * depth the program configured. Assignments and evidence are NOT copied
+     * — a new cycle starts with fresh work against copied content.
+     *
+     * Nodes are created breadth-first so a parent always exists before its
+     * children, and the source→target id map re-links the chain.
+     *
+     * @return int number of nodes copied
      */
-    public function copyStandards(AssessmentCycle $source, AssessmentCycle $target): int
+    public function copyHierarchy(AssessmentCycle $source, AssessmentCycle $target): int
     {
         return DB::transaction(function () use ($source, $target) {
-            $count = 0;
+            $sourceNodes = ComplianceNode::where('program_cycle_id', $source->id)
+                ->orderBy('level')->orderBy('sort_order')->orderBy('id')
+                ->get();
 
-            foreach ($source->standards()->with('evidenceRequirements', 'departments')->get() as $standard) {
-                $newStandard = Standard::create([
-                    'cycle_id' => $target->id,
-                    'standard_number' => $standard->standard_number,
-                    'name_ar' => $standard->name_ar,
-                    'name_en' => $standard->name_en,
-                    'description' => $standard->description,
-                    'version' => $standard->version,
-                    'weight' => $standard->weight,
-                    'due_date' => null, // Reset due date for new cycle
-                    'is_active' => true,
+            $structureVersionId = app(HierarchyDefinitionService::class)
+                ->currentStructureVersion($target->program)?->id;
+
+            $map = [];
+            $copied = 0;
+
+            foreach ($sourceNodes as $node) {
+                // A node whose parent was not copied (shouldn't happen given
+                // the ordering) is skipped rather than silently re-rooted.
+                if ($node->parent_id !== null && ! isset($map[$node->parent_id])) {
+                    continue;
+                }
+
+                $clone = ComplianceNode::create([
+                    ...$node->only([
+                        'compliance_program_id', 'hierarchy_level_id', 'node_type', 'level',
+                        'code', 'name_ar', 'name_en', 'description_ar', 'description_en',
+                        'objective_ar', 'objective_en', 'guidance_ar', 'guidance_en',
+                        'weight', 'default_due_date', 'sort_order', 'is_assessable',
+                        'is_assignable_override', 'is_assessable_override', 'accepts_evidence_override',
+                        'metadata',
+                    ]),
+                    'program_cycle_id' => $target->id,
+                    'structure_version_id' => $structureVersionId,
+                    'parent_id' => $node->parent_id ? $map[$node->parent_id] : null,
+                    'status' => 'active',
+                    'created_by' => $target->created_by,
+                    'updated_by' => $target->created_by,
                 ]);
 
-                // Copy evidence requirements
-                foreach ($standard->evidenceRequirements as $req) {
-                    $newStandard->evidenceRequirements()->create([
-                        'title_ar' => $req->title_ar,
-                        'title_en' => $req->title_en,
-                        'description' => $req->description,
-                        'is_mandatory' => $req->is_mandatory,
-                        'sort_order' => $req->sort_order,
-                    ]);
-                }
-
-                // Copy department assignments
-                foreach ($standard->departments as $dept) {
-                    $newStandard->departments()->attach($dept->id, [
-                        'assigned_at' => now(),
-                        'assigned_by' => auth()->id(),
-                    ]);
-                }
-
-                $count++;
+                $map[$node->id] = $clone->id;
+                $copied++;
             }
 
             AuditService::log(
-                'cycle.standards_copied',
-                "Copied {$count} standards from cycle #{$source->id} to cycle #{$target->id}",
-                $target
+                'cycle.hierarchy_copied',
+                "Copied {$copied} node(s) from cycle '{$source->name}' into '{$target->name}'",
+                $target,
+                complianceProgramId: $target->compliance_program_id,
             );
 
-            return $count;
+            return $copied;
         });
     }
 }

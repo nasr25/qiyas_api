@@ -3,11 +3,12 @@
 namespace Tests\Feature\Workflow;
 
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\ProgramUserRole;
-use App\Models\Standard;
 use App\Models\User;
+use App\Services\HierarchyDefinitionService;
 use Database\Seeders\EmailTemplatesSeeder;
 use Database\Seeders\QiyasProgramConfigurationSeeder;
 use Database\Seeders\QiyasWorkflowDefinitionSeeder;
@@ -34,7 +35,7 @@ abstract class WorkflowTestCase extends TestCase
 
     protected Department $deptB;
 
-    protected Standard $requirement;
+    protected ComplianceNode $requirement;
 
     protected User $superAdmin;
 
@@ -76,10 +77,7 @@ abstract class WorkflowTestCase extends TestCase
         $this->deptA = $this->makeDepartment('Dept A');
         $this->deptB = $this->makeDepartment('Dept B');
 
-        $this->requirement = Standard::create([
-            'cycle_id' => $this->cycle->id, 'standard_number' => 'STD-1',
-            'name_ar' => 'معيار', 'name_en' => 'Standard', 'is_active' => true,
-        ]);
+        $this->requirement = $this->seedHierarchy();
 
         $this->programManager = $this->makeUser('qiyas-admin');
         $this->grantProgramRole($this->programManager, $this->qiyas, 'program-manager');
@@ -98,6 +96,47 @@ abstract class WorkflowTestCase extends TestCase
 
         $this->deptBEmployee = $this->makeUser('employee', $this->deptB->id);
         $this->grantProgramRole($this->deptBEmployee, $this->qiyas, 'employee', $this->deptB->id);
+    }
+
+    /**
+     * Activates a three-level QIYAS structure and builds one node per level,
+     * returning the assessable leaf. Deliberately deeper than two levels so
+     * the suite would catch any reintroduced fixed-depth assumption.
+     */
+    protected function seedHierarchy(): ComplianceNode
+    {
+        $structures = app(HierarchyDefinitionService::class);
+        $draft = $structures->openDraft($this->qiyas, $this->superAdmin);
+
+        foreach ([
+            ['key' => 'perspective', 'name_ar' => 'المنظور', 'name_en' => 'Perspective'],
+            ['key' => 'axis', 'name_ar' => 'المحور', 'name_en' => 'Axis'],
+            ['key' => 'criterion', 'name_ar' => 'المعيار', 'name_en' => 'Criterion',
+                'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+        ] as $level) {
+            $structures->addLevel($draft, $level + [
+                'appears_in_dashboard' => true, 'appears_in_reports' => true,
+                'appears_in_filters' => true, 'appears_in_breadcrumb' => true,
+            ], $this->superAdmin);
+        }
+        $structures->activate($draft->fresh(), $this->superAdmin);
+
+        $parent = null;
+        foreach ($structures->levels($this->qiyas) as $index => $level) {
+            $parent = ComplianceNode::create([
+                'compliance_program_id' => $this->qiyas->id,
+                'program_cycle_id' => $this->cycle->id,
+                'hierarchy_level_id' => $level->id,
+                'parent_id' => $parent?->id,
+                'node_type' => $level->key,
+                'level' => $index,
+                'code' => 'STD-1-L'.($index + 1),
+                'name_ar' => 'معيار', 'name_en' => 'Standard',
+                'created_by' => $this->superAdmin->id,
+            ]);
+        }
+
+        return $parent;
     }
 
     protected function grantProgramRole(User $user, ComplianceProgram $program, string $roleKey, ?int $departmentId = null): ProgramUserRole

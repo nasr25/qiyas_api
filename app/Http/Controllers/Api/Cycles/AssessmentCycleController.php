@@ -57,12 +57,12 @@ class AssessmentCycleController extends Controller
 
         if (! empty($data['copy_from_cycle'])) {
             $source = AssessmentCycle::findOrFail($data['copy_from_cycle']);
-            $count = $this->cycleService->copyStandards($source, $cycle);
+            $count = $this->cycleService->copyHierarchy($source, $cycle);
 
             return response()->json([
                 'success' => true,
                 'data' => new AssessmentCycleResource($cycle),
-                'message' => "Cycle created with {$count} standards copied.",
+                'message' => "Cycle created with {$count} hierarchy node(s) copied.",
             ], 201);
         }
 

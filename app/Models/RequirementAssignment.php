@@ -14,7 +14,7 @@ class RequirementAssignment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'compliance_program_id', 'program_cycle_id', 'requirement_id', 'department_id',
+        'compliance_program_id', 'program_cycle_id', 'compliance_node_id', 'department_id',
         'employee_id', 'assigned_by', 'assigned_at', 'original_due_date', 'effective_due_date',
         'status', 'priority', 'instructions_ar', 'instructions_en',
         'previous_assignment_id', 'reassignment_reason', 'completed_at',
@@ -42,9 +42,24 @@ class RequirementAssignment extends Model
         return $this->belongsTo(AssessmentCycle::class, 'program_cycle_id');
     }
 
+    /**
+     * The assessable item this assignment covers.
+     *
+     * Repointed from `standards` to `compliance_nodes` during mirror removal
+     * (audit finding C2): the standards row only ever carried two ancestor
+     * levels, so a deep NDMO/ECC assignment lost its position in the tree.
+     * The relation keeps its name because callers ask the same question —
+     * only the answer is now depth-complete.
+     */
     public function requirement()
     {
-        return $this->belongsTo(Standard::class, 'requirement_id');
+        return $this->belongsTo(ComplianceNode::class, 'compliance_node_id');
+    }
+
+    /** Alias reading more naturally where the tree, not the workflow, is the subject. */
+    public function node()
+    {
+        return $this->belongsTo(ComplianceNode::class, 'compliance_node_id');
     }
 
     public function department()

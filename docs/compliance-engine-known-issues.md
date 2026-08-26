@@ -1,5 +1,12 @@
 # Compliance Engine — Known Issues (Phase 4)
 
+> **Status update — 26 August 2026.** This is the Phase 4 gap list. Several
+> items have since been closed by the Dynamic Compliance Engine (XLSX browser
+> coverage, hierarchy-grouped metrics, arbitrary hierarchy depth). Items
+> marked resolved inline are current; the rest still stand. Current status:
+> [`final-dynamic-compliance-engine-report-ar.md`](final-dynamic-compliance-engine-report-ar.md).
+
+
 The honest gap list this phase's final report points to. Nothing here was
 silently dropped — each item was either explicitly out of scope, a genuine
 time-budget tradeoff, or infeasible in this environment, and is named as
@@ -60,10 +67,12 @@ full breakdown.
   test-only time-control mechanism (explicitly required to be
   production-inaccessible per the brief) was judged lower priority than
   the defect-finding value of the journey tests actually built.
-- **XLSX Playwright tests** — template download/upload/preview/confirm/
-  error-report, entirely untested through the UI this phase. The
-  underlying backend behavior is unchanged and still covered by
-  `QiyasImportTest.php` (PHPUnit).
+- **XLSX Playwright tests** — ~~entirely untested through the UI this
+  phase~~. **Resolved.** `tests/e2e/dynamic-xlsx/template-depth.spec.ts`
+  (7 tests) now drives template download, upload, preview, confirm and
+  structure-version rejection through the UI. Backend coverage moved from
+  `QiyasImportTest.php` to `HierarchyImportApiTest.php` and
+  `HierarchyXlsxTest.php` (32 tests).
 - **Responsive tests** — `playwright.config.ts` already defines `tablet`
   and `mobile` projects pointed at `tests/e2e/responsive/`, but no spec
   files exist there yet. No responsive-specific defect is claimed to be

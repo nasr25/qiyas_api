@@ -109,8 +109,8 @@ class VerifyProgramDataIntegrity extends Command
         $decisionsWithoutSubmission = WorkflowDecision::where('compliance_program_id', $programId)->whereDoesntHave('submission')->count();
 
         $duplicateActiveAssignments = RequirementAssignment::where('compliance_program_id', $programId)
-            ->where('status', 'active')->selectRaw('requirement_id, COUNT(*) as c')
-            ->groupBy('requirement_id')->havingRaw('COUNT(*) > 1')->get()->count();
+            ->where('status', 'active')->selectRaw('compliance_node_id, COUNT(*) as c')
+            ->groupBy('compliance_node_id')->havingRaw('COUNT(*) > 1')->get()->count();
 
         $duplicatePendingExtensions = ExtensionRequest::where('compliance_program_id', $programId)
             ->where('status', ExtensionRequest::STATUS_PENDING)->whereNotNull('requirement_assignment_id')
@@ -179,7 +179,7 @@ class VerifyProgramDataIntegrity extends Command
             ['Assessable hierarchy nodes missing their bridged requirement', $assessableNodesWithoutStandard, $assessableNodesWithoutStandard === 0],
             ['Circular hierarchy references', $circularNodes, $circularNodes === 0],
             ['Assignments with dangling department_id', $assignmentsBadDept, $assignmentsBadDept === 0],
-            ['Assignments with dangling requirement_id', $assignmentsBadRequirement, $assignmentsBadRequirement === 0],
+            ['Assignments with dangling compliance_node_id', $assignmentsBadRequirement, $assignmentsBadRequirement === 0],
             ['Submissions without a parent assignment', $submissionsWithoutAssignment, $submissionsWithoutAssignment === 0],
             ['Decisions without a parent submission', $decisionsWithoutSubmission, $decisionsWithoutSubmission === 0],
             ['Duplicate active assignments for the same requirement', $duplicateActiveAssignments, $duplicateActiveAssignments === 0],

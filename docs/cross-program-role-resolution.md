@@ -18,7 +18,7 @@ methods:
 Every program-scoped controller authorizes through these, never through a
 platform-wide spatie role alone — this was already correct before Phase 5
 in every controller built during Phase 2/4 (`RequirementAssignmentController`,
-`SlaSettingController`, `QiyasImportController`, ...).
+`SlaSettingController`, `HierarchyImportController`, ...).
 
 ## The real gap Phase 5 found and closed: the frontend had none of this
 

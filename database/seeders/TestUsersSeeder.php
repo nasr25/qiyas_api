@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Department;
 use App\Models\User;
+use Database\Seeders\Concerns\NonProductionSeeder;
 use Illuminate\Database\Seeder;
 
 /**
@@ -14,6 +15,8 @@ use Illuminate\Database\Seeder;
  */
 class TestUsersSeeder extends Seeder
 {
+    use NonProductionSeeder;
+
     public const PASSWORD = 'Password123!';
 
     /** [username, name, role, department name_en (null = no department)] */
@@ -60,6 +63,8 @@ class TestUsersSeeder extends Seeder
 
     public function run(): void
     {
+        $this->guardAgainstProduction();
+
         $deptIds = Department::pluck('id', 'name_en');
 
         foreach (self::accounts() as [$username, $name, $role, $deptEn]) {

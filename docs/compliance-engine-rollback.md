@@ -1,5 +1,13 @@
 # Compliance Engine — Rollback Plan
 
+> **Status update — 26 August 2026.** This page covers the Phase 4 rollback
+> plan. The dynamic hierarchy migrations have their own **tested** rollback
+> procedure and evidence — see
+> [`dynamic-hierarchy-rollback.md`](dynamic-hierarchy-rollback.md), which
+> records an actually-executed rollback (all checks passed) rather than a
+> plan, including two real defects the test itself uncovered.
+
+
 ## Database
 
 All five Phase 4 migrations
@@ -30,11 +38,11 @@ rollback is a pure implementation-detail reversion, not a business-rule
 change.
 
 Similarly, `ExtensionRequestPolicy`, `EvidenceUploadValidator`,
-`ExtensionService`, `QiyasRequirementsTemplateExport`, and
+`ExtensionService`, the XLSX template export, and
 `WorkflowDashboardController` can each be reverted independently — every
 Phase 4 change to them has a fallback path already built in (platform
-`Setting` for evidence limits, `RequirementsSheet::COLUMNS` constant for
-import columns, the literal `'auditor'` role for extensions), so partial
+`Setting` for evidence limits, the literal `'auditor'` role for
+extensions), so partial
 rollback of any one engine does not require rolling back the others.
 
 ## Frontend

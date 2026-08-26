@@ -44,7 +44,7 @@ Matches the brief's required user list exactly (`tests/e2e/helpers/auth.ts`).
 Valid/invalid/unsupported-version/wrong-program XLSX fixture files — no
 XLSX E2E scenario was written this phase (see
 `docs/compliance-engine-known-issues.md`), so these fixtures were not
-generated. `QiyasImportTest.php` (backend PHPUnit) already builds a valid
+generated. `HierarchyImportApiTest.php` (backend PHPUnit) already builds a valid
 template file on the fly via `Excel::store()` for its own coverage; the
 same technique would apply for a future Playwright XLSX suite rather than
 checked-in binary fixtures.

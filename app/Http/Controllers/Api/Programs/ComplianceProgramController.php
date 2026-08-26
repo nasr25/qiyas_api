@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ComplianceProgramResource;
 use App\Models\ComplianceProgram;
 use App\Models\Document;
+use App\Services\EvidenceStatusCounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -67,13 +68,10 @@ class ComplianceProgramController extends Controller
     /** Lightweight document-status summary for the program card / detail header. */
     private function summaryFor(ComplianceProgram $program): array
     {
-        $counts = Document::where('compliance_program_id', $program->id)
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        $counts = app(EvidenceStatusCounts::class)->for(['program_id' => $program->id]);
 
-        $total = (int) $counts->sum();
-        $approved = (int) ($counts['approved'] ?? 0);
+        $total = $counts['total'];
+        $approved = $counts['approved'];
 
         return [
             'total_documents' => $total,

@@ -33,7 +33,7 @@ class DataIntegrityCommandTest extends WorkflowTestCase
         $submission = $assignment->submissions()->create([
             'compliance_program_id' => $this->qiyas->id,
             'program_cycle_id' => $this->cycle->id,
-            'requirement_id' => $this->requirement->id,
+            'compliance_node_id' => $this->requirement->id,
             'department_id' => $this->deptA->id,
             'submitted_by' => $this->deptAEmployee->id,
             'version_number' => 1,

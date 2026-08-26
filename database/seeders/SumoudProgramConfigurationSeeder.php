@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Exports\Qiyas\MetadataSheet;
 use App\Models\ComplianceProgram;
 use App\Services\ProgramConfigurationService;
 use Illuminate\Database\Seeder;
@@ -67,30 +66,6 @@ class SumoudProgramConfigurationSeeder extends Seeder
             'employee_assignment_required' => false,
             'reassignment_reason_required' => true,
             'due_date_required' => false,
-        ]);
-
-        // Sumoud's own import template definition — the visible columns
-        // suggested in the Phase 5 brief, using the same generic machine
-        // column identifiers the RequirementsSheet/QiyasImportValidator
-        // pipeline already reads from configuration (see
-        // docs/import-export-engine.md). Bilingual headings only; no
-        // translated title is ever used as an importer key.
-        $service->set($program, 'import', [
-            'program_code' => 'SUMOUD',
-            'template_version' => MetadataSheet::TEMPLATE_VERSION,
-            'schema_version' => '1',
-            'columns' => [
-                ['key' => 'perspective', 'label_ar' => 'رمز المجال', 'label_en' => 'Domain Code', 'required' => false],
-                ['key' => 'axis', 'label_ar' => 'رمز الفئة', 'label_en' => 'Category Code', 'required' => false],
-                ['key' => 'standard_number', 'label_ar' => 'رمز المتطلب', 'label_en' => 'Requirement Code', 'required' => true],
-                ['key' => 'name_ar', 'label_ar' => 'اسم المتطلب (عربي)', 'label_en' => 'Requirement Name (Arabic)', 'required' => true],
-                ['key' => 'name_en', 'label_ar' => 'اسم المتطلب (إنجليزي)', 'label_en' => 'Requirement Name (English)', 'required' => false],
-                ['key' => 'description', 'label_ar' => 'الوصف', 'label_en' => 'Description', 'required' => false],
-                ['key' => 'application_requirements', 'label_ar' => 'الهدف', 'label_en' => 'Objective', 'required' => false],
-                ['key' => 'evidence_documents', 'label_ar' => 'متطلبات الإثبات', 'label_en' => 'Evidence Requirements', 'required' => false],
-                ['key' => 'weight', 'label_ar' => 'الوزن', 'label_en' => 'Weight', 'required' => false],
-                ['key' => 'due_date', 'label_ar' => 'تاريخ الاستحقاق الافتراضي', 'label_en' => 'Default Due Date', 'required' => false],
-            ],
         ]);
 
         // scoring_enabled = false: no approved Sumoud scoring formula

@@ -16,7 +16,9 @@ class ProgramConfiguration extends Model
     public const CATEGORIES = [
         'identity', 'terminology', 'hierarchy', 'workflow', 'assignment',
         'evidence', 'review', 'deadlines', 'extensions', 'sla',
-        'notifications', 'import', 'export', 'dashboards', 'reports',
+        // 'import' was removed with the legacy Qiyas importer: XLSX columns
+        // are now derived from the program's structure, not configured.
+        'notifications', 'export', 'dashboards', 'reports',
         'scoring', 'security', 'features', 'responsibilities',
     ];
 

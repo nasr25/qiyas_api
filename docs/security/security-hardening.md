@@ -14,7 +14,7 @@ is deterministic — no AI security scanner was used anywhere.
 |---|---|---|
 | High | No rate limiting on `/auth/login`/`/auth/quick-login` | `throttle:login` — 10 req/min keyed by `lower(username)+ip` |
 | High | Disguised-executable upload (MIME blocklist missing PE/ELF/Mach-O variants; `.exe` renamed `.pdf` passed) | Expanded blocklist (PE/ELF/Mach-O, `text/html`, `image/svg+xml`) |
-| Medium | `.xlsm` renamed `.xlsx` bypassed macro detection (filename-only check) | `QiyasImportValidator` inspects the ZIP for `xl/vbaProject.bin` on both preview and confirm |
+| Medium | `.xlsm` renamed `.xlsx` bypassed macro detection (filename-only check) | `HierarchyImportValidator` inspects the ZIP for `xl/vbaProject.bin` on both preview and confirm |
 | Medium | `LdapService::authenticate()` had no own empty-password guard | Explicit `trim($password) === ''` guard added |
 | Medium | No security headers | `SecurityHeaders` middleware added (see below) |
 | Low | CORS allowed `localhost:*` regardless of environment | Empty allow-list in production |

@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Exports\Qiyas\MetadataSheet;
 use App\Models\ComplianceProgram;
 use App\Services\ProgramConfigurationService;
 use Illuminate\Database\Seeder;
@@ -84,29 +83,6 @@ class NDMOProgramConfigurationSeeder extends Seeder
             'types' => [
                 ['type' => 'data_owner', 'label_ar' => 'مالك البيانات', 'label_en' => 'Data Owner'],
                 ['type' => 'data_steward', 'label_ar' => 'مسؤول البيانات', 'label_en' => 'Data Steward'],
-            ],
-        ]);
-
-        // NDMO's own import template definition — visible columns
-        // suggested by the Phase 7 brief, generic machine column
-        // identifiers, subject to the honest limitation documented in
-        // docs/programs/ndmo/xlsx-import.md (the importer targets the
-        // flat Requirement level, not the full five-level tree, this phase).
-        $service->set($program, 'import', [
-            'program_code' => 'NDMO',
-            'template_version' => MetadataSheet::TEMPLATE_VERSION,
-            'schema_version' => '1',
-            'columns' => [
-                ['key' => 'perspective', 'label_ar' => 'رمز المجال', 'label_en' => 'Domain Code', 'required' => false],
-                ['key' => 'axis', 'label_ar' => 'رمز السياسة', 'label_en' => 'Policy Code', 'required' => false],
-                ['key' => 'standard_number', 'label_ar' => 'رمز المتطلب', 'label_en' => 'Requirement Code', 'required' => true],
-                ['key' => 'name_ar', 'label_ar' => 'اسم المتطلب (عربي)', 'label_en' => 'Requirement Name (Arabic)', 'required' => true],
-                ['key' => 'name_en', 'label_ar' => 'اسم المتطلب (إنجليزي)', 'label_en' => 'Requirement Name (English)', 'required' => false],
-                ['key' => 'description', 'label_ar' => 'الوصف', 'label_en' => 'Description', 'required' => false],
-                ['key' => 'application_requirements', 'label_ar' => 'الإرشادات', 'label_en' => 'Guidance', 'required' => false],
-                ['key' => 'evidence_documents', 'label_ar' => 'متطلبات الإثبات', 'label_en' => 'Evidence Requirements', 'required' => false],
-                ['key' => 'weight', 'label_ar' => 'الوزن', 'label_en' => 'Weight', 'required' => false],
-                ['key' => 'due_date', 'label_ar' => 'تاريخ الاستحقاق الافتراضي', 'label_en' => 'Default Due Date', 'required' => false],
             ],
         ]);
 

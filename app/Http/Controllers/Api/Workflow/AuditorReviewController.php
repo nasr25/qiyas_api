@@ -74,7 +74,7 @@ class AuditorReviewController extends ReviewQueueController
             'success' => true,
             'data' => $extensions->getCollection()->map(fn (ExtensionRequest $e) => [
                 'id' => $e->id,
-                'requirement' => $e->assignment ? ['id' => $e->assignment->requirement->id, 'code' => $e->assignment->requirement->standard_number, 'name' => $e->assignment->requirement->name] : null,
+                'requirement' => $e->assignment ? ['id' => $e->assignment->requirement->id, 'code' => $e->assignment->requirement->code, 'name' => $e->assignment->requirement->name] : null,
                 'department' => $e->assignment?->department?->name,
                 'requested_by' => $e->requester?->name,
                 'current_due_date' => $e->current_due_date?->toDateString(),

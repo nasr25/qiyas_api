@@ -4,31 +4,51 @@ namespace App\Http\Controllers\Api\Programs;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
-use App\Models\Standard;
+use App\Services\HierarchyDefinitionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Requirement is the generic name for what Qiyas calls a "Standard" (see
- * program terminology settings). Read-only in Phase 1 — full CRUD for
- * requirements continues to live at the legacy nested route
- * /api/v1/cycles/{cycle}/standards, which is unaffected by this addition.
- * Defaults to the program's current cycle when ?cycle_id is not given.
+ * "Requirement" is the generic name for the assessable item a program
+ * assigns and collects evidence against — a Qiyas Criterion, an ECC
+ * Control, an NDMO Requirement.
+ *
+ * Repointed from `standards` to `compliance_nodes` during mirror removal.
+ * The old implementation listed Standards and exposed a fixed
+ * `domain`/`category` pair taken from the free-text perspective/axis
+ * columns, which meant (a) an assignment UI built on this list handed the
+ * assignment endpoint a standard id that is no longer assignable, and
+ * (b) anything deeper than two levels was invisible. Each row now carries
+ * its full `path` at whatever depth the program configured.
+ *
+ * Only nodes on assessable levels are listed: a grouping node is not a
+ * requirement and must never appear in an assignment picker.
  */
 class ProgramRequirementController extends Controller
 {
+    public function __construct(private readonly HierarchyDefinitionService $structures) {}
+
     public function index(Request $request): JsonResponse
     {
         /** @var ComplianceProgram $program */
         $program = $request->attributes->get('compliance_program');
         $cycle = $this->resolveCycle($request, $program);
 
-        $requirements = Standard::where('compliance_program_id', $program->id)
-            ->when($cycle, fn ($q) => $q->where('cycle_id', $cycle->id))
-            ->when($request->domain, fn ($q) => $q->where('perspective', $request->domain))
-            ->when($request->category, fn ($q) => $q->where('axis', $request->category))
-            ->orderBy('standard_number')
+        $assessableLevelIds = collect($this->structures->levels($program))
+            ->where('is_assessable', true)->pluck('id');
+
+        $requirements = ComplianceNode::where('compliance_program_id', $program->id)
+            ->whereIn('hierarchy_level_id', $assessableLevelIds ?: [0])
+            ->when($cycle, fn ($q) => $q->where('program_cycle_id', $cycle->id))
+            // Depth-agnostic replacement for the old domain/category filter:
+            // narrow to any ancestor's subtree, at any level.
+            ->when($request->ancestor_id, fn ($q) => $q->whereIn(
+                'id', ComplianceNode::subtreeIds((int) $request->ancestor_id),
+            ))
+            ->with('hierarchyLevel')
+            ->orderBy('level')->orderBy('code')
             ->paginate($request->get('per_page', 20));
 
         return response()->json([
@@ -37,20 +57,22 @@ class ProgramRequirementController extends Controller
             // a nested JSON key — Laravel serializes the paginator itself
             // (current_page/data/last_page/...) as the value, not a flat
             // array, breaking any frontend consumer expecting a plain list.
-            // See docs/qiyas-workflow.md §6 for the same defect class fixed
-            // elsewhere in Phase 2/3; this controller was missed then.
-            'data' => $requirements->getCollection()->map(fn (Standard $s) => [
-                'id' => $s->id,
-                'number' => $s->standard_number,
-                'name' => $s->name,
-                'name_ar' => $s->name_ar,
-                'name_en' => $s->name_en,
-                'domain' => $s->perspective,
-                'category' => $s->axis,
-                'status' => $s->status,
-                'weight' => $s->weight,
-                'due_date' => $s->due_date?->toDateString(),
-                'is_active' => $s->is_active,
+            'data' => $requirements->getCollection()->map(fn (ComplianceNode $node) => [
+                'id' => $node->id,
+                'number' => $node->code,
+                'code' => $node->code,
+                'name' => $node->name,
+                'name_ar' => $node->name_ar,
+                'name_en' => $node->name_en,
+                'level_key' => $node->hierarchyLevel?->key,
+                'level_name' => $node->hierarchyLevel?->name,
+                'path' => $node->breadcrumb(),
+                'status' => $node->status,
+                'weight' => $node->weight,
+                'due_date' => $node->default_due_date?->toDateString(),
+                'is_assignable' => $node->isAssignable(),
+                'accepts_evidence' => $node->acceptsEvidence(),
+                'is_active' => $node->status === 'active',
             ])->values(),
             'meta' => [
                 'current_page' => $requirements->currentPage(),
@@ -65,17 +87,36 @@ class ProgramRequirementController extends Controller
         /** @var ComplianceProgram $resolvedProgram */
         $resolvedProgram = $request->attributes->get('compliance_program');
 
-        $standard = Standard::where('id', $requirement)
+        $node = ComplianceNode::where('id', $requirement)
             ->where('compliance_program_id', $resolvedProgram->id)
+            ->with('hierarchyLevel')
             ->first();
 
-        if (! $standard) {
+        if (! $node) {
             return response()->json(['success' => false, 'message' => 'Requirement not found.'], 404);
         }
 
         return response()->json([
             'success' => true,
-            'data' => $standard->load('evidenceRequirements', 'departments'),
+            'data' => [
+                'id' => $node->id,
+                'code' => $node->code,
+                'name' => $node->name,
+                'name_ar' => $node->name_ar,
+                'name_en' => $node->name_en,
+                'description_ar' => $node->description_ar,
+                'objective_ar' => $node->objective_ar,
+                'guidance_ar' => $node->guidance_ar,
+                'weight' => $node->weight,
+                'due_date' => $node->default_due_date?->toDateString(),
+                'level_key' => $node->hierarchyLevel?->key,
+                'level_name' => $node->hierarchyLevel?->name,
+                'path' => $node->breadcrumb(),
+                'is_assignable' => $node->isAssignable(),
+                'is_assessable' => $node->isAssessable(),
+                'accepts_evidence' => $node->acceptsEvidence(),
+                'status' => $node->status,
+            ],
         ]);
     }
 

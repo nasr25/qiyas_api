@@ -14,6 +14,7 @@ use App\Services\WorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -156,6 +157,22 @@ class EvidenceSubmissionController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
+        // Confirm the bytes are actually there before recording a download.
+        // Storage::download() on a missing path raises, which surfaced as a
+        // 500 — and the audit trail already said the file had been handed
+        // over. A row whose file is gone is a 404 with an honest log entry.
+        if (! Storage::disk('private')->exists($evidenceFile->storage_path)) {
+            Log::warning('Evidence file row has no file on disk', [
+                'evidence_file_id' => $evidenceFile->id,
+                'submission_id' => $evidenceFile->evidence_submission_id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'The stored file is no longer available.',
+            ], 404);
+        }
+
         AuditService::log(
             'evidence.downloaded',
             "Downloaded {$evidenceFile->original_name} from submission #{$evidenceFile->evidence_submission_id}",
@@ -221,7 +238,7 @@ class EvidenceSubmissionController extends Controller
                 'stage' => $d->stage, 'decision' => $d->decision, 'reviewer' => $d->reviewer?->name,
                 'notes' => $d->notes, 'rejection_reason' => $d->rejection_reason, 'decided_at' => $d->decided_at->toIso8601String(),
             ]),
-            'requirement' => ['id' => $submission->assignment->requirement->id, 'code' => $submission->assignment->requirement->standard_number, 'name' => $submission->assignment->requirement->name],
+            'requirement' => ['id' => $submission->assignment->requirement->id, 'code' => $submission->assignment->requirement->code, 'name' => $submission->assignment->requirement->name],
             'department' => $submission->assignment->department->name,
         ];
     }

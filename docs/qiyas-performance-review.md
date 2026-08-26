@@ -83,15 +83,17 @@ onboarding significantly increases per-program row counts.
 
 ## XLSX import/export memory behavior
 
-- **Export** (`QiyasRequirementsTemplateExport`): uses
+- **Export** (`App\Exports\Hierarchy\HierarchyTemplateExport`): uses
   `Excel::download()`, which streams the generated file rather than
-  building the full response body in memory first — appropriate for a
-  template that is always small (10 fixed columns, a handful of rows).
-- **Import** (`QiyasImportValidator::validate()`): calls `Excel::toArray()`,
+  building the full response body in memory first. The template is always
+  small — column count is `(3 × levels) + enabled attributes`, currently
+  14–26 columns across the programs in service, with a handful of rows.
+  Measured template generation: 8.2–13.8 ms.
+- **Import** (`HierarchyImportValidator::validate()`): calls `Excel::toArray()`,
   which loads the **entire** workbook into a PHP array. Combined with the
   existing `MAX_ROWS = 5000` cap and the 10 MB upload size limit already
-  enforced in `QiyasImportController::preview()`, worst case is a 5,000-row,
-  10-column array — a few megabytes, not a memory risk at the configured
+  enforced in `HierarchyImportController::preview()`, worst case is a 5,000-row,
+  array of at most 26 columns — a few megabytes, not a memory risk at the configured
   cap. If the row cap or upload size limit is ever raised significantly,
   this should move to `Excel::import()` with a chunked/queued reader instead
   of `toArray()`.

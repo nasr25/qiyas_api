@@ -66,7 +66,7 @@ with severity and verification. Summary:
 3. **[Medium] XLSX macro-enabled workbook check was filename-only** — a
    `.xlsm` renamed to `.xlsx` would pass the extension check untouched.
    Fixed by inspecting the actual ZIP contents for `xl/vbaProject.bin`
-   inside `QiyasImportValidator::validate()`, which runs on both preview
+   inside `HierarchyImportValidator::validate()`, which runs on both preview
    *and* confirm. Verified by
    `test_macro_enabled_workbook_renamed_to_xlsx_is_rejected_on_import_preview`.
 4. **[Medium] LDAP empty-password defense-in-depth gap** — `LdapService`

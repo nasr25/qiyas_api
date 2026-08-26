@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Exports\Qiyas\MetadataSheet;
 use App\Models\ComplianceProgram;
 use App\Services\ProgramConfigurationService;
 use Illuminate\Database\Seeder;
@@ -71,26 +70,6 @@ class ECCProgramConfigurationSeeder extends Seeder
             'employee_assignment_required' => false,
             'reassignment_reason_required' => true,
             'due_date_required' => false,
-        ]);
-
-        // ECC's own import template definition — visible columns suggested
-        // by the Phase 6 brief, generic machine column identifiers.
-        $service->set($program, 'import', [
-            'program_code' => 'ECC',
-            'template_version' => MetadataSheet::TEMPLATE_VERSION,
-            'schema_version' => '1',
-            'columns' => [
-                ['key' => 'perspective', 'label_ar' => 'رمز المجال الرئيسي', 'label_en' => 'Main Domain Code', 'required' => false],
-                ['key' => 'axis', 'label_ar' => 'رمز المجال الفرعي', 'label_en' => 'Subdomain Code', 'required' => false],
-                ['key' => 'standard_number', 'label_ar' => 'رمز الضابط', 'label_en' => 'Control Code', 'required' => true],
-                ['key' => 'name_ar', 'label_ar' => 'اسم الضابط (عربي)', 'label_en' => 'Control Name (Arabic)', 'required' => true],
-                ['key' => 'name_en', 'label_ar' => 'اسم الضابط (إنجليزي)', 'label_en' => 'Control Name (English)', 'required' => false],
-                ['key' => 'description', 'label_ar' => 'الوصف', 'label_en' => 'Description', 'required' => false],
-                ['key' => 'application_requirements', 'label_ar' => 'الإرشادات', 'label_en' => 'Guidance', 'required' => false],
-                ['key' => 'evidence_documents', 'label_ar' => 'متطلبات الإثبات', 'label_en' => 'Evidence Requirements', 'required' => false],
-                ['key' => 'weight', 'label_ar' => 'الوزن', 'label_en' => 'Weight', 'required' => false],
-                ['key' => 'due_date', 'label_ar' => 'تاريخ الاستحقاق الافتراضي', 'label_en' => 'Default Due Date', 'required' => false],
-            ],
         ]);
 
         // scoring_enabled = false: no approved ECC scoring formula exists.

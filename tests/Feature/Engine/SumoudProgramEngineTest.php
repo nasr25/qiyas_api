@@ -2,8 +2,9 @@
 
 namespace Tests\Feature\Engine;
 
-use App\Exports\Qiyas\QiyasRequirementsTemplateExport;
+use App\Exports\Hierarchy\HierarchyTemplateExport;
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\EvidenceSubmission;
 use App\Models\ProgramConfigurationVersion;
@@ -13,8 +14,9 @@ use App\Models\WorkflowDefinition;
 use App\Services\CycleService;
 use App\Services\DashboardMetricsService;
 use App\Services\ExtensionService;
+use App\Services\HierarchyDefinitionService;
+use App\Services\HierarchyImportValidator;
 use App\Services\ProgramConfigurationService;
-use App\Services\QiyasImportValidator;
 use App\Services\SlaService;
 use App\Services\WorkflowDefinitionRepository;
 use App\Services\WorkflowService;
@@ -41,7 +43,7 @@ class SumoudProgramEngineTest extends WorkflowTestCase
 
     private AssessmentCycle $sumoudCycle;
 
-    private Standard $sumoudRequirement;
+    private ComplianceNode $sumoudRequirement;
 
     protected function setUp(): void
     {
@@ -62,10 +64,36 @@ class SumoudProgramEngineTest extends WorkflowTestCase
             'status' => 'active', 'is_current' => true, 'created_by' => $this->superAdmin->id,
         ]);
 
-        $this->sumoudRequirement = Standard::create([
-            'cycle_id' => $this->sumoudCycle->id, 'standard_number' => 'SMD-1',
-            'name_ar' => 'متطلب تجريبي لصمود', 'name_en' => 'Sumoud Test Requirement', 'is_active' => true,
-        ]);
+        // Sumoud's own three-level structure, activated through the same
+        // service a Program Manager uses. The requirement is the assessable
+        // leaf node — the standards mirror was removed in the
+        // dynamic-hierarchy phase (audit finding C2).
+        $structures = app(HierarchyDefinitionService::class);
+        $draft = $structures->openDraft($this->sumoud, $this->superAdmin);
+        foreach ([
+            ['key' => 'domain', 'name_ar' => 'المجال', 'name_en' => 'Domain'],
+            ['key' => 'category', 'name_ar' => 'الفئة', 'name_en' => 'Category'],
+            ['key' => 'requirement', 'name_ar' => 'المتطلب', 'name_en' => 'Requirement',
+                'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true],
+        ] as $level) {
+            $structures->addLevel($draft, $level, $this->superAdmin);
+        }
+        $structures->activate($draft->fresh(), $this->superAdmin);
+
+        $parent = null;
+        foreach ($structures->levels($this->sumoud) as $index => $level) {
+            $parent = ComplianceNode::create([
+                'compliance_program_id' => $this->sumoud->id,
+                'program_cycle_id' => $this->sumoudCycle->id,
+                'hierarchy_level_id' => $level->id,
+                'parent_id' => $parent?->id,
+                'node_type' => $level->key, 'level' => $index,
+                'code' => 'SMD-1-L'.($index + 1),
+                'name_ar' => 'متطلب تجريبي لصمود', 'name_en' => 'Sumoud Test Requirement',
+                'created_by' => $this->superAdmin->id,
+            ]);
+        }
+        $this->sumoudRequirement = $parent;
     }
 
     // ── Program creation ────────────────────────────────────────────────
@@ -341,19 +369,39 @@ class SumoudProgramEngineTest extends WorkflowTestCase
 
     // ── Import isolation ─────────────────────────────────────────────────
 
-    public function test_sumoud_import_template_is_rejected_by_qiyas_validator_and_vice_versa(): void
+    /**
+     * Rewritten onto the structure-driven engine: Sumoud's own template must
+     * be refused by Qiyas and vice versa. The guarantee is unchanged; only
+     * the engine behind it is.
+     */
+    public function test_a_programs_import_template_is_rejected_by_another_program(): void
     {
-        $sumoudExport = new QiyasRequirementsTemplateExport('SUMOUD', $this->sumoud->id, $this->sumoudCycle->id);
-        Excel::store($sumoudExport, 'sumoud-cross-test-template.xlsx', 'local');
-        $path = storage_path('app/private/sumoud-cross-test-template.xlsx');
+        $structures = app(HierarchyDefinitionService::class);
 
-        $validator = app(QiyasImportValidator::class);
-        $result = $validator->validate($path, $this->qiyas, $this->cycle);
+        $build = function ($program, $cycle) use ($structures) {
+            $levels = array_values(collect($structures->levels($program))->all());
+            $name = strtolower($program->code).'-cross-template.xlsx';
+            Excel::store(new HierarchyTemplateExport(
+                $program, $levels, $structures->currentStructureVersion($program), $cycle,
+            ), $name, 'local');
 
+            return storage_path('app/private/'.$name);
+        };
+
+        $validator = app(HierarchyImportValidator::class);
+
+        $sumoudTemplate = $build($this->sumoud, $this->sumoudCycle);
+        $result = $validator->validate($sumoudTemplate, $this->qiyas);
         $this->assertFalse($result['metadata_valid']);
-        $this->assertSame('WRONG_PROGRAM', $result['errors'][0]['code']);
+        $this->assertContains('WRONG_PROGRAM', array_column($result['errors'], 'code'));
 
-        @unlink($path);
+        $qiyasTemplate = $build($this->qiyas, $this->cycle);
+        $reverse = $validator->validate($qiyasTemplate, $this->sumoud);
+        $this->assertFalse($reverse['metadata_valid']);
+        $this->assertContains('WRONG_PROGRAM', array_column($reverse['errors'], 'code'));
+
+        @unlink($sumoudTemplate);
+        @unlink($qiyasTemplate);
     }
 
     // ── Dashboard isolation ──────────────────────────────────────────────

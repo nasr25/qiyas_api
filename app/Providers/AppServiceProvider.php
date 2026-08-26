@@ -6,9 +6,7 @@ use App\Events\WorkflowNotificationRequested;
 use App\Listeners\LogEmailSending;
 use App\Listeners\LogEmailSent;
 use App\Listeners\SendWorkflowNotification;
-use App\Models\Document;
 use App\Models\EmailLog;
-use App\Policies\DocumentPolicy;
 use App\Services\AuthService;
 use App\Services\CycleService;
 use App\Services\DocumentService;
@@ -39,8 +37,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
-
-        Gate::policy(Document::class, DocumentPolicy::class);
 
         // Super Admin bypasses all authorization
         Gate::before(function ($user, $ability) {
@@ -92,13 +88,43 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
-        $perMinute = (int) env('LOGIN_RATE_LIMIT_PER_MINUTE', 10);
+        // Read through config(), not env(): once `php artisan config:cache`
+        // runs — which a production deployment should do — the .env file is
+        // no longer loaded and a bare env() call silently falls back to its
+        // default, quietly ignoring whatever the deployment configured.
+        $perMinute = (int) config('security.login_rate_limit', 10);
 
         RateLimiter::for('login', function (Request $request) use ($perMinute) {
-            $key = strtolower((string) $request->input('username')).'|'.$request->ip();
+            // The username is attacker-controlled and is NOT guaranteed to be
+            // a string: posting {"username": ["a"]} made the (string) cast
+            // throw, turning a malformed unauthenticated request into a 500
+            // before validation ever ran. Anything non-scalar is bucketed by
+            // IP alone.
+            $username = $request->input('username');
+            $key = (is_scalar($username) ? strtolower((string) $username) : '-').'|'.$request->ip();
 
             return Limit::perMinute($perMinute)->by($key);
         });
+
+        // Authenticated but expensive: report generation, XLSX template
+        // generation, exports and import validation each read or build over
+        // the whole hierarchy. Unthrottled, a single authenticated client
+        // could saturate the database. Keyed per user so one caller cannot
+        // affect another, and set well above real interactive use.
+        RateLimiter::for('reports', fn (Request $request) => Limit::perMinute(
+            (int) config('security.reports_rate_limit', 60)
+        )->by($this->throttleKey($request)));
+
+        // Uploads additionally consume disk and parser time.
+        RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(
+            (int) config('security.uploads_rate_limit', 30)
+        )->by($this->throttleKey($request)));
+    }
+
+    /** Per-authenticated-user throttle key, falling back to IP. */
+    private function throttleKey(Request $request): string
+    {
+        return (string) ($request->user()?->id ?: $request->ip());
     }
 
     /**

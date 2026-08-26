@@ -76,17 +76,6 @@ class Standard extends Model
         return $this->hasMany(EvidenceRequirement::class)->orderBy('sort_order');
     }
 
-    public function assignments()
-    {
-        return $this->hasMany(RequirementAssignment::class, 'requirement_id');
-    }
-
-    /** The single current active assignment, if any (one primary department per requirement). */
-    public function activeAssignment()
-    {
-        return $this->hasOne(RequirementAssignment::class, 'requirement_id')->where('status', 'active');
-    }
-
     // ─── Accessors ───────────────────────────────────────────────────────────
 
     public function getNameAttribute(): string

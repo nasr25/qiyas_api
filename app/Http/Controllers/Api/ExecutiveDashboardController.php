@@ -4,14 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCycle;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
-use App\Models\Document;
 use App\Models\EvidenceSubmission;
 use App\Models\ExtensionRequest;
 use App\Models\RequirementAssignment;
 use App\Models\SlaInstance;
-use App\Models\Standard;
+use App\Services\EvidenceStatusCounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -66,7 +66,11 @@ class ExecutiveDashboardController extends Controller
     {
         $programIds = $programs->pluck('id');
 
-        $totalRequirements = Standard::whereIn('compliance_program_id', $programIds)->count();
+        // Requirements are assessable ComplianceNodes now — the legacy
+        // Standard model no longer has an authoring path.
+        $totalRequirements = ComplianceNode::whereIn('compliance_program_id', $programIds)
+            ->whereHas('hierarchyLevel', fn ($q) => $q->where('is_assessable', true))
+            ->count();
         $approved = EvidenceSubmission::whereIn('compliance_program_id', $programIds)->where('status', 'approved')->count();
         $pending = EvidenceSubmission::whereIn('compliance_program_id', $programIds)
             ->whereIn('status', ['pending_department_manager', 'pending_auditor', 'pending_program_manager'])->count();
@@ -90,12 +94,10 @@ class ExecutiveDashboardController extends Controller
 
     private function documentStats(int $programId, ?int $cycleId): array
     {
-        $counts = Document::where('compliance_program_id', $programId)
-            ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
+        // Evidence lives in EvidenceSubmission now; the legacy `documents`
+        // table has no writers and would report zeros.
+        $counts = app(EvidenceStatusCounts::class)
+            ->for(['program_id' => $programId, 'cycle_id' => $cycleId]);
 
         return [
             'total' => array_sum($counts),
@@ -133,14 +135,19 @@ class ExecutiveDashboardController extends Controller
         $programIds = $programs->pluck('id');
 
         return Department::active()->get()->map(function (Department $dept) use ($programIds) {
-            $counts = Document::where('department_id', $dept->id)
-                ->whereIn('compliance_program_id', $programIds)
-                ->selectRaw('status, count(*) as count')
-                ->groupBy('status')
-                ->pluck('count', 'status')
-                ->toArray();
+            // One department across every program the viewer can see.
+            $counts = collect($programIds)
+                ->map(fn (int $programId) => app(EvidenceStatusCounts::class)
+                    ->for(['program_id' => $programId, 'department_id' => $dept->id]))
+                ->reduce(function (array $carry, array $row) {
+                    foreach ($row as $key => $value) {
+                        $carry[$key] = ($carry[$key] ?? 0) + $value;
+                    }
 
-            $total = array_sum($counts);
+                    return $carry;
+                }, []);
+
+            $total = $counts['total'] ?? 0;
             $approved = $counts['approved'] ?? 0;
 
             return [
@@ -159,9 +166,12 @@ class ExecutiveDashboardController extends Controller
         $cycleIds = AssessmentCycle::whereIn('compliance_program_id', $programs->pluck('id'))
             ->where('is_current', true)->pluck('id');
 
-        return Standard::whereIn('cycle_id', $cycleIds)
-            ->whereNotNull('due_date')
-            ->whereBetween('due_date', [now()->toDateString(), now()->addDays(30)->toDateString()])
+        // Deadlines live on the assignment, which is where a due date can
+        // actually be changed (extensions move `effective_due_date`).
+        return RequirementAssignment::whereIn('program_cycle_id', $cycleIds)
+            ->where('status', 'active')
+            ->whereNotNull('effective_due_date')
+            ->whereBetween('effective_due_date', [now()->toDateString(), now()->addDays(30)->toDateString()])
             ->count();
     }
 }

@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Events\WorkflowNotificationRequested;
 use App\Exceptions\WorkflowConflictException;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\RequirementAssignment;
-use App\Models\Standard;
 use App\Models\User;
 use App\Models\WorkflowDecision;
 use App\Models\WorkflowEvent;
@@ -54,7 +54,7 @@ class WorkflowService
     // ─── Program Manager: assignment ───────────────────────────────────────
 
     public function assign(
-        Standard $requirement,
+        ComplianceNode $requirement,
         ComplianceProgram $program,
         User $assignedBy,
         Department $department,
@@ -65,15 +65,24 @@ class WorkflowService
         ?string $instructionsEn,
     ): RequirementAssignment {
         return DB::transaction(function () use ($requirement, $program, $assignedBy, $department, $employee, $dueDate, $priority, $instructionsAr, $instructionsEn) {
-            $existing = RequirementAssignment::where('requirement_id', $requirement->id)->active()->lockForUpdate()->first();
+            // Audit finding H7: assignability is a property of the level the
+            // node sits on, configured per program. Enforced here on the
+            // backend, not merely by hiding the Assign button.
+            if (! $requirement->isAssignable()) {
+                throw new WorkflowConflictException(
+                    "Nodes at level '{$requirement->node_type}' are not assignable in this program's structure."
+                );
+            }
+
+            $existing = RequirementAssignment::where('compliance_node_id', $requirement->id)->active()->lockForUpdate()->first();
             if ($existing) {
                 throw new WorkflowConflictException('This requirement is already assigned. Use reassignment to change the department.');
             }
 
             $assignment = RequirementAssignment::create([
                 'compliance_program_id' => $program->id,
-                'program_cycle_id' => $requirement->cycle_id,
-                'requirement_id' => $requirement->id,
+                'program_cycle_id' => $requirement->program_cycle_id,
+                'compliance_node_id' => $requirement->id,
                 'department_id' => $department->id,
                 'employee_id' => $employee?->id,
                 'assigned_by' => $assignedBy->id,
@@ -119,7 +128,7 @@ class WorkflowService
             $new = RequirementAssignment::create([
                 'compliance_program_id' => $assignment->compliance_program_id,
                 'program_cycle_id' => $assignment->program_cycle_id,
-                'requirement_id' => $assignment->requirement_id,
+                'compliance_node_id' => $assignment->compliance_node_id,
                 'department_id' => $newDepartment->id,
                 'employee_id' => null,
                 'assigned_by' => $actor->id,
@@ -176,6 +185,16 @@ class WorkflowService
 
     public function getOrCreateDraft(RequirementAssignment $assignment, User $employee): EvidenceSubmission
     {
+        // Audit finding H7: evidence may only be collected on a level the
+        // program marked as evidence-bearing. Previously this was only
+        // detected after the fact by compliance:verify-hierarchy.
+        $node = $assignment->node;
+        if ($node && ! $node->acceptsEvidence()) {
+            throw new WorkflowConflictException(
+                "Nodes at level '{$node->node_type}' do not accept evidence in this program's structure."
+            );
+        }
+
         return DB::transaction(function () use ($assignment, $employee) {
             $assignment = RequirementAssignment::whereKey($assignment->id)->lockForUpdate()->firstOrFail();
 
@@ -198,7 +217,7 @@ class WorkflowService
             $version = EvidenceSubmission::create([
                 'compliance_program_id' => $assignment->compliance_program_id,
                 'program_cycle_id' => $assignment->program_cycle_id,
-                'requirement_id' => $assignment->requirement_id,
+                'compliance_node_id' => $assignment->compliance_node_id,
                 'requirement_assignment_id' => $assignment->id,
                 'department_id' => $assignment->department_id,
                 'submitted_by' => $employee->id,
@@ -218,7 +237,7 @@ class WorkflowService
         $version = EvidenceSubmission::create([
             'compliance_program_id' => $assignment->compliance_program_id,
             'program_cycle_id' => $assignment->program_cycle_id,
-            'requirement_id' => $assignment->requirement_id,
+            'compliance_node_id' => $assignment->compliance_node_id,
             'requirement_assignment_id' => $assignment->id,
             'department_id' => $assignment->department_id,
             'submitted_by' => $employee->id,

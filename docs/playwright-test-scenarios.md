@@ -1,5 +1,20 @@
 # Playwright Test Scenarios — Results
 
+> ⚠️ **Superseded — historical run record.**
+> This page records a Playwright run from before the dynamic-engine
+> transition. Scenario 1 ("Program Manager creates a Standard
+> (Perspective/Axis/name/weight) via real UI") describes the **retired**
+> authoring path: there is no `Standard` model in the authoring flow any
+> more, and Perspective/Axis are configurable hierarchy levels rather than
+> fixed fields.
+>
+> **Current browser evidence:**
+> [`testing/dynamic-hierarchy-playwright.md`](testing/dynamic-hierarchy-playwright.md)
+> — Chromium 231/231, Firefox 4/4, WebKit Environment Blocked / Not Tested.
+> **Test disposition record:**
+> [`testing/legacy-playwright-retirement.md`](testing/legacy-playwright-retirement.md).
+
+
 Final confirmed run (Chromium full suite + Firefox/WebKit smoke), all
 against the isolated `qiyas_e2e_db` environment described in
 `docs/playwright-e2e-guide.md`:

@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\Workflow;
 
 use App\Http\Controllers\Controller;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\EvidenceSubmission;
 use App\Models\ExtensionRequest;
 use App\Models\RequirementAssignment;
 use App\Models\SlaInstance;
-use App\Models\Standard;
 use App\Models\WorkflowEvent;
 use App\Services\DashboardMetricsService;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +34,11 @@ class WorkflowDashboardController extends Controller
         $program = $this->program($request);
         $this->authorize($request, fn ($u) => $u->isPlatformSuperAdmin() || $u->hasProgramRole($program, 'program-manager'));
 
-        $totalRequirements = Standard::where('compliance_program_id', $program->id)->count();
+        // Requirements are assessable ComplianceNodes since the legacy
+        // Standard authoring path was retired.
+        $totalRequirements = ComplianceNode::where('compliance_program_id', $program->id)
+            ->whereHas('hierarchyLevel', fn ($q) => $q->where('is_assessable', true))
+            ->count();
         $assignedCount = $this->metrics->assignedRequirementIds($program)->count();
 
         return response()->json(['success' => true, 'data' => [

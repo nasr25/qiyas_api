@@ -1,5 +1,13 @@
 # Multi-Program Compliance Platform Architecture
 
+> **Superseded in part.** This document described the Phase 1 multi-program
+> layer, when hierarchy was still two free-text columns on `standards` and
+> `Standard` was the assignable entity. Both are gone. The program /
+> membership / isolation model below remains accurate; the hierarchy,
+> authoring and taxonomy sections are corrected inline and marked
+> **[superseded]**. The authoritative description of the current engine is
+> [`dynamic-compliance-structure.md`](dynamic-compliance-structure.md).
+
 Status: Phase 1 complete. Only the QIYAS program is active and fully
 functional. This document describes the architecture introduced to support
 multiple compliance programs (Sumoud, ECC, NDMO, ...) without another major
@@ -50,26 +58,34 @@ Compliance Program → Program Cycle → Domain → Category → Requirement
   `compliance_program_id` (required), `name_ar`/`name_en`, `is_current`,
   `settings`, `closed_by`. The table and model name (`AssessmentCycle`)
   were **not** renamed.
-- `standards`, `documents`, `extension_requests`, `comments`, `audit_logs`
+- `compliance_nodes`, `requirement_assignments`, `evidence_submissions`, `extension_requests`, `comments`, `audit_logs`
+  (`standards` and `documents` are retained but empty, with no writers)
   all gained a `compliance_program_id` column, auto-stamped from their
   parent on creation (see model `booted()` hooks), so every domain query can
   filter by program without walking the FK chain.
 
 **Deferred technical debt (documented, not silently dropped):**
 
-- **Domain / Category are not normalized tables.** `standards.perspective`
-  and `standards.axis` remain free-text columns, exactly as before.
+- **[superseded] Domain / Category are not normalized tables.** They now
+  are: every level of every program is a `hierarchy_level_definitions` row,
+  and every node a `compliance_nodes` row. The free-text
+  `standards.perspective` / `standards.axis` columns no longer back any
+  read or write path.
   Splitting them into first-class `domains` / `categories` tables would
   touch the 89-row DGA standards importer (`StandardsCatalogSeeder`,
   `database/seeders/data/qiyas_standards.json`), the Excel
   import/template/export flows, and every report query — judged too risky
   for Phase 1's "no rewrite, incremental refactor" mandate.
   `/api/v1/programs/{program}/domains` and `.../categories` exist and
-  return real data (distinct `perspective`/`axis` values with counts), so
+  [superseded — these endpoints were removed] returned distinct
+  `perspective`/`axis` values with counts, so
   the API contract is already in its final shape; the underlying storage
   is the deferred piece.
-- **Standard is not renamed to Requirement.** The class, table, and legacy
-  routes keep the name `Standard`. The new
+- **[superseded] Standard is not renamed to Requirement.** `Standard` is
+  retired as an authoring model. "Requirement" now means an assessable
+  `ComplianceNode`, and what it is *called* comes from the program's own
+  level definition — Criterion for Qiyas, Control for ECC, Requirement for
+  NDMO. The new
   `/api/v1/programs/{program}/requirements` route is a generic-named
   read-only view over the same table — this is the "abstraction layer"
   the brief explicitly allows in place of a risky rename.
@@ -147,13 +163,16 @@ GET /api/v1/executive-dashboard
 
 `{program}` is matched by **code** (e.g. `QIYAS`), resolved and
 access-checked by `EnsureProgramAccess` before any controller runs — see
-§7. All pre-existing flat routes (`/cycles`, `/standards`, `/documents`,
-...) are **unchanged and still fully functional**; only Qiyas data exists,
-so they behave identically to before.
+§7. **[superseded]** The flat routes `/standards` and `/documents` were
+removed with the legacy authoring path; compliance content is authored
+exclusively through `/programs/{program}/hierarchy` at whatever depth the
+program's structure defines.
 
 Frontend: `/programs` (selection) and `/programs/:programCode/...`
-(dashboard, cycles, requirements, documents, auditor, reports,
-my-standards) are new. The legacy flat frontend paths (`/dashboard`,
+(dashboard, cycles, requirements, reports, my-requirements, and
+`settings/structure`) are the supported paths. **[superseded]** The
+`documents`, `auditor` and `my-standards` frontend views listed here were
+removed with the legacy path. The legacy flat frontend paths (`/dashboard`,
 `/cycles`, ...) are kept as router redirects into the QIYAS program, so
 nothing bookmarked or linked externally breaks. The nested views reuse the
 exact same Vue components and still call the legacy flat API endpoints —

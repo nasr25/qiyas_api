@@ -4,7 +4,7 @@
 
 | Entity | Purpose | Relationship to Phase 1 |
 |---|---|---|
-| `RequirementAssignment` | One requirement assigned to one primary department (+ optional employee) | New — `department_standard` (Phase 1 pivot, many-to-many) is left untouched for backward compatibility with the legacy `/standards` views; assignment is now modeled explicitly, one row per active assignment, history preserved as superseded rows |
+| `RequirementAssignment` | One requirement assigned to one primary department (+ optional employee) | Assignment is modeled explicitly, one row per active assignment, history preserved as superseded rows. **Assignment now targets a `ComplianceNode`** on a level the program's structure marks assignable — the legacy `/standards` views this row once deferred to have been removed |
 | `EvidenceSubmission` | One row per submission **version** for an assignment | New, generic ("Evidence Submission" was already named in `docs/multi-program-architecture.md` as the target generic entity). Coexists with the legacy `Document`/`DocumentVersion` model, which stays fully functional for existing routes/reports but is not extended further |
 | `EvidenceFile` | A file attached to one `EvidenceSubmission` version | New |
 | `WorkflowDecision` | Append-only reviewer decision at a stage | New |

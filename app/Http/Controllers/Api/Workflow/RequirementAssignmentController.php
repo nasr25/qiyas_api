@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api\Workflow;
 
 use App\Exceptions\WorkflowConflictException;
 use App\Http\Controllers\Controller;
+use App\Models\ComplianceNode;
 use App\Models\ComplianceProgram;
 use App\Models\Department;
 use App\Models\RequirementAssignment;
-use App\Models\Standard;
 use App\Models\User;
 use App\Services\WorkflowService;
 use Illuminate\Http\JsonResponse;
@@ -62,7 +62,9 @@ class RequirementAssignmentController extends Controller
             'instructions_en' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $requirement = Standard::where('id', $data['requirement_id'])
+        // Scoped by program so a node id from another program cannot be
+        // assigned by guessing an id.
+        $requirement = ComplianceNode::where('id', $data['requirement_id'])
             ->where('compliance_program_id', $program->id)
             ->first();
         if (! $requirement) {
@@ -217,7 +219,7 @@ class RequirementAssignmentController extends Controller
     {
         return [
             'id' => $a->id,
-            'requirement' => ['id' => $a->requirement->id, 'code' => $a->requirement->standard_number, 'name' => $a->requirement->name],
+            'requirement' => ['id' => $a->requirement->id, 'code' => $a->requirement->code, 'name' => $a->requirement->name],
             'department' => ['id' => $a->department->id, 'name' => $a->department->name],
             'employee' => $a->employee ? ['id' => $a->employee->id, 'name' => $a->employee->name] : null,
             'status' => $a->status,

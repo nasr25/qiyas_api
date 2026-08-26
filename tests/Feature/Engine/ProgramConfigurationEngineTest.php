@@ -3,17 +3,17 @@
 namespace Tests\Feature\Engine;
 
 use App\Exceptions\InvalidProgramConfigurationException;
-use App\Exports\Qiyas\QiyasRequirementsTemplateExport;
+use App\Exports\Hierarchy\HierarchyTemplateExport;
 use App\Models\ProgramConfigurationVersion;
 use App\Models\WorkflowDefinition;
 use App\Services\EvidenceUploadValidator;
 use App\Services\ExtensionService;
+use App\Services\HierarchyDefinitionService;
 use App\Services\ProgramConfigurationService;
 use App\Services\WorkflowDefinitionRepository;
 use App\Services\WorkflowService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
-use Maatwebsite\Excel\Facades\Excel;
 use Tests\Feature\Workflow\WorkflowTestCase;
 
 /**
@@ -135,21 +135,49 @@ class ProgramConfigurationEngineTest extends WorkflowTestCase
         $this->assertContains('docx', $validator->allowedExtensions($this->otherProgram));
     }
 
-    public function test_xlsx_template_columns_come_from_program_configuration_not_a_php_constant(): void
+    /**
+     * Rewritten: XLSX columns used to come from an `import` program-
+     * configuration category. They now come from the program's STRUCTURE,
+     * which is stronger — a program that adds a level gets a wider template
+     * with no configuration edit and no code change.
+     */
+    public function test_xlsx_template_columns_come_from_the_program_structure(): void
     {
-        $config = app(ProgramConfigurationService::class)->get($this->qiyas, 'import');
-        $config['columns'][] = ['key' => 'engine_test_column', 'label_ar' => 'عمود تجريبي', 'label_en' => 'Engine Test Column', 'required' => false];
-        app(ProgramConfigurationService::class)->set($this->qiyas, 'import', $config, $this->superAdmin);
+        $admin = $this->makeUser('super-admin');
 
-        $export = new QiyasRequirementsTemplateExport($this->qiyas->code, $this->qiyas->id, $this->cycle->id);
-        Excel::store($export, 'engine-test-template.xlsx', 'local');
-        $path = storage_path('app/private/engine-test-template.xlsx');
+        $this->activateStructure($this->qiyas, [
+            ['key' => 'perspective'],
+            ['key' => 'axis'],
+            ['key' => 'criterion', 'is_assessable' => true, 'is_assignable' => true],
+        ], $admin);
 
-        $sheets = Excel::toArray(null, $path);
-        $requirementsSheet = collect($sheets)->first(fn ($rows) => in_array('standard_number', $rows[0] ?? [], true));
+        $structures = app(HierarchyDefinitionService::class);
+        $levels = array_values(collect($structures->levels($this->qiyas))->all());
 
-        $this->assertContains('engine_test_column', $requirementsSheet[0]);
+        $columns = HierarchyTemplateExport::columnsFor($levels);
+        $keys = array_column($columns, 'key');
 
-        @unlink($path);
+        // Three columns per level, keyed by the level's own key.
+        $this->assertContains('perspective_code', $keys);
+        $this->assertContains('axis_name_ar', $keys);
+        $this->assertContains('criterion_name_en', $keys);
+        $this->assertNotContains('level_4_code', $keys);
+
+        // Adding a level widens the template with no code change.
+        $draft = $structures->openDraft($this->qiyas, $admin);
+        $structures->addLevel($draft, [
+            'key' => 'application_requirement', 'name_ar' => 'متطلب', 'name_en' => 'Requirement',
+            'is_assessable' => true,
+        ], $admin);
+        $structures->activate($draft->fresh(), $admin, acknowledgeMigration: true);
+
+        $widened = array_column(
+            HierarchyTemplateExport::columnsFor(
+                array_values(collect($structures->levels($this->qiyas))->all()),
+            ),
+            'key',
+        );
+        $this->assertContains('application_requirement_code', $widened);
+        $this->assertGreaterThan(count($keys), count($widened));
     }
 }

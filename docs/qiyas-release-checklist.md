@@ -149,7 +149,7 @@ during the Phase 3 audit — see `docs/qiyas-known-issues.md`.
       `test_macro_enabled_workbook_renamed_to_xlsx_is_rejected_on_import_preview`.
 - [x] Transaction rollback / no-partial-import passed —
       `test_import_preview_does_not_save_any_data` (preview never writes)
-      plus `QiyasImportService::confirm()`'s single-transaction design
+      plus `HierarchyImportService::confirm()`'s single-transaction design
       (code-reviewed, matches the "all or nothing" requirement).
 
 ## Operations
