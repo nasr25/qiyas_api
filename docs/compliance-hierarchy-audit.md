@@ -12,7 +12,7 @@
 
 **Audit date:** 2026-08-25
 **Branch audited:** `feature/multi-program-compliance-platform` @ `a2760f3`
-**Auditor:** Automated implementation audit (Claude Code)
+**Auditor:** Automated implementation audit
 **Scope:** Database, backend, frontend, dashboards, reports, XLSX, authorization, cache, tests, seeders
 **Status of implementation:** NOT STARTED — this document is the mandatory gate before Phase B.
 
