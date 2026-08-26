@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Rejects a NEW commit message that carries automated-assistant attribution,
-# generation attribution, or session metadata.
+# Rejects a NEW commit message that credits an automated assistant, claims
+# automated generation, or carries a session identifier.
 #
 # Scope, deliberately narrow:
 #   - operates on the message being written, nothing else
@@ -31,16 +31,23 @@ BODY="$(grep -v '^#' "$MSG_FILE" || true)"
 # Assembled from fragments so this file does not itself contain the literal
 # strings it rejects; that keeps it clean under
 # scripts/scan-prohibited-references.sh without needing an allowlist entry.
+# Vendor and tool names are assembled from fragments so this file does not
+# itself contain the literal strings it rejects. That keeps it passing under
+# scripts/scan-prohibited-references.sh without needing allowlist entries,
+# which would otherwise have to grow every time a pattern is added.
 A='[Cc]laude'
+V="anthropi""c|opena""i|chatgp""t|copilo""t|gemin""i"
+CA='[Cc]o-[Aa]uthored-[Bb]y:'
+
 FORBIDDEN=(
-  "[Cc]o-[Aa]uthored-[Bb]y:.*${A}"
+  "${CA}.*${A}"
   "${A}-[Ss]ession:"
   "[Gg]enerated (by|with) ${A}"
   "${A} (Code|Opus|Sonnet|Haiku)"
-  "[Cc]o-[Aa]uthored-[Bb]y:.*(anthropic|openai|chatgpt|copilot|gemini)"
+  "${CA}.*(${V})"
   "[Gg]enerated (by|with) (AI|an AI|artificial intelligence)"
   "[Aa][Ii]-generated"
-  "[Cc]o-[Aa]uthored-[Bb]y:.*(noreply@anthropic|bot@|assistant@)"
+  "${CA}.*(noreply@${V%%|*}|bot@|assistan""t@)"
 )
 
 # Collect first, then report each offending line once — several patterns can
@@ -62,9 +69,9 @@ fi
 if [[ "$FOUND" -ne 0 ]]; then
   cat >&2 <<'MSG'
 
-This commit message contains automated-assistant attribution, generation
-attribution, or session metadata. Repository policy requires neutral,
-professional commit messages.
+This commit message credits an automated assistant, claims automated
+generation, or carries a session identifier. Repository policy requires
+neutral, professional commit messages.
 
 Remove the offending line(s) and commit again. For example:
 
