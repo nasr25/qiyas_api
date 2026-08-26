@@ -2,7 +2,12 @@
 
 **Author:** Nasser
 
-## Pipeline stages (current CI, `.github/workflows/ci.yml` in both repos)
+## Release checks
+
+> **These are manual.** They ran as GitHub Actions stages on every push and
+> pull request until that pipeline was retired. The commands are unchanged —
+> what is gone is the guarantee that anyone ran them. Run them before
+> tagging a release.
 
 1. Prohibited-reference scan (`scripts/scan-prohibited-references.sh`)
    — fails the build on any unreviewed AI-tool reference.

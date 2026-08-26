@@ -48,11 +48,17 @@ A `git grep` sweep for known CDN hostnames plus a broader, unbounded
 `localhost`) was used to distinguish a real network-request URL from a
 benign string occurrence — e.g. the SVG XML namespace URI
 `http://www.w3.org/2000/svg`, which browsers never fetch, versus an
-actual `<link>`/`<script src>`/`@import url()` usage. The frontend CI
-workflow now runs an automated version of this check
-(`.github/workflows/ci.yml`, "Verify no known public CDN hostname
-survives in the build output") against the production build output on
-every push.
+actual `<link>`/`<script src>`/`@import url()` usage.
+
+This ran automatically against the production build on every push until the
+GitHub Actions pipeline was retired. It is now a **manual release step**, and
+nothing enforces it for you:
+
+```bash
+cd qiyas_frontend && npm run build
+CDN_HOSTS='fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|ajax\.googleapis\.com|fonts\.bunny\.net|cdn\.tailwindcss\.com'
+grep -rEo "$CDN_HOSTS" dist/ && echo "CDN dependency reintroduced" || echo "clean"
+```
 
 ## Optional integrations (never CDN-dependent)
 

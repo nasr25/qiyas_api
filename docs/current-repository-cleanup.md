@@ -76,10 +76,16 @@ unapproved email/organization/website was added.
 
 ## Deterministic CI enforcement
 
-`scripts/scan-prohibited-references.sh` (both repositories) runs the
-same scan in CI (`.github/workflows/ci.yml`) on every push/PR and
-**fails the build** if any match is found that isn't on the script's
-own narrow, hash-pinned allowlist. Each allowlist entry:
+`scripts/scan-prohibited-references.sh` runs the same scan and exits
+non-zero if any match is found that isn't on the script's own narrow,
+hash-pinned allowlist.
+
+> It ran automatically on every push and pull request until the GitHub
+> Actions pipeline was retired. The check is unchanged, but it is now
+> **invoked manually** — nothing fails a build on your behalf. The frontend
+> copy was removed entirely, as the workflow was its only caller there.
+
+Each allowlist entry:
 
 - Is pinned to a specific file, line number, **and** a SHA-256 hash of
   that exact line's content — never a filename or directory wildcard.

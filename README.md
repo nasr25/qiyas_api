@@ -219,5 +219,6 @@ Load testing uses k6 (never Playwright) — see
 currently tracked file for references to automated code-generation
 tools and fails the build if any unreviewed match is found — see
 [`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
-It runs in CI (`.github/workflows/ci.yml`) alongside `composer audit`
-and the full test suite.
+Run it manually — `bash scripts/scan-prohibited-references.sh` — alongside
+`composer audit` and the full test suite. It ran automatically on every push
+until the GitHub Actions pipeline was retired; nothing invokes it for you now.

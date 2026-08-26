@@ -38,9 +38,9 @@ variant is actually used — see `docs/deployment/release-process.md`.
   contain no reference to `fonts.googleapis.com`,
   `fonts.gstatic.com`, `cdn.jsdelivr.net`, `unpkg.com`,
   `cdnjs.cloudflare.com`, `ajax.googleapis.com`, `fonts.bunny.net`, or
-  `cdn.tailwindcss.com`. This check is now automated in the frontend
-  CI workflow (`.github/workflows/ci.yml`, "Verify no known public CDN
-  hostname survives in the build output").
+  `cdn.tailwindcss.com`. This check was automated in the frontend CI
+  workflow until the GitHub Actions pipeline was retired; it is now a
+  **manual release step** — see `docs/offline-assets.md` for the command.
 - **Two real CDN dependencies found and removed this phase**: an
   active `@import url('https://fonts.googleapis.com/...')` in
   `frontend/src/assets/main.css` (replaced with 10 local `@import`
