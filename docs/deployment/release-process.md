@@ -10,7 +10,8 @@
 > tagging a release.
 
 1. Prohibited-reference scan (`scripts/scan-prohibited-references.sh`)
-   — fails the build on any unreviewed AI-tool reference.
+   — exits non-zero on any unreviewed generation-tool reference in a
+   tracked file. Scans the current working tree only, never git history.
 2. Backend: `composer install`, `composer audit`, migrate against a
    fresh CI database, `php artisan test`.
 3. Frontend: `npm ci`, `npm audit --audit-level=high`, `npm run

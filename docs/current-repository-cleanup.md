@@ -110,3 +110,86 @@ except for the same self-documentation entries.
   injected line was reverted before committing.
 - No prohibited AI dependency was found in either dependency manifest
   — see `docs/dependency-inventory.md`.
+
+---
+
+# Repository Cleanup Policy
+
+**Status: current.** This section defines the standing policy. Everything
+above it records the phase in which the cleanup was originally performed.
+
+## Scope
+
+**Current tracked files must contain no prohibited automated-generation or
+assistant-attribution references.** This covers source code, configuration,
+documentation, tests, scripts, migrations, seeders, fixtures, and package and
+Composer metadata — anything tracked by git in the working tree.
+
+**All new commits must use neutral, professional commit messages** and must
+not credit an automated assistant, carry a session identifier, or claim
+automated generation.
+
+## Historical commits are out of scope — deliberately
+
+**Historical published commits are intentionally excluded from this policy
+and will not be rewritten.** Existing commit hashes, authors, co-author
+metadata, trailers, and commit messages are preserved exactly as published.
+
+Historical references may therefore remain visible through git history, and
+that is accepted. Rewriting published history to conceal them is explicitly
+not done: it would break every existing clone, invalidate every published
+hash, and misrepresent the record.
+
+What such a historical reference does **not** represent:
+
+- a runtime dependency
+- a source-code dependency
+- a build dependency
+- a deployment dependency
+- a platform integration
+
+### The accurate claim
+
+> Current tracked repository state passes the prohibited-reference policy.
+> Historical git metadata is intentionally excluded from this gate.
+
+Do **not** claim that the entire git history is free of prohibited
+references. It is not, and it was never the goal.
+
+## The two checks
+
+| Check | Command | Scope |
+|---|---|---|
+| Tracked-file scan | `bash scripts/scan-prohibited-references.sh` | Current working tree. Exit `0` on success |
+| Commit-message validation | `.githooks/commit-msg` → `scripts/validate-commit-message.sh` | The message being written. Never existing history |
+
+Both are **manual/local by design**. The GitHub Actions workflows that once
+ran the scan were retired; see the status annotations elsewhere in this
+document. Do not recreate a workflow merely to automate this.
+
+### Installing the commit-message hook
+
+Once per clone, in **both** repositories:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook is a thin wrapper so the rule lives in version control rather than
+in each developer's untracked `.git/hooks` directory. It rejects assistant
+attribution trailers, session identifiers, and generation attribution, while
+deliberately allowing legitimate human co-authors and ordinary business text
+that happens to contain the letters "AI".
+
+## Allowlist rules
+
+Every exception is pinned as `path:line:sha256-of-that-line`. There are no
+globs, no directory-level exceptions, and no extension-level exceptions —
+each allowed occurrence is an individually reviewed line.
+
+**Re-pinning rule.** If a line moves because content was inserted above it,
+the entry may be re-pointed to the new line number **only after confirming
+the SHA-256 is unchanged** — that is, the reviewed content itself did not
+change. A hash may never be updated merely to silence a finding. When the
+content genuinely does change, the exception must be re-reviewed on its
+merits and the reason recorded in the allowlist comment above the entry.

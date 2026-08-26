@@ -22,9 +22,12 @@ Format: **Added / Changed / Fixed / Security / Deps**.
   `configured`/`changed`/`removed` action (never a value) for secrets.
 - A Super Admin Email Templates administration page (the API existed
   from an earlier phase; the frontend UI is new this phase).
-- `scripts/scan-prohibited-references.sh` — a deterministic, non-AI CI
-  scan for automated-code-generation-tool references, wired into a new
+- `scripts/scan-prohibited-references.sh` — a deterministic scan for
+  automated-code-generation-tool references, wired at the time into a
   GitHub Actions workflow alongside `composer audit` and the test suite.
+  *Historical status: that workflow has since been retired. The scan
+  itself is unchanged and is now run manually —
+  `bash scripts/scan-prohibited-references.sh`.*
 - `scripts/backup.sh` / `scripts/restore.sh` — DB + evidence + branding
   storage backup and checksum-verified restore, run for real against
   the dev database as a drill.

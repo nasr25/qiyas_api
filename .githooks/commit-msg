@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Delegates to the tracked validator so the rule lives in version control
+# rather than in each developer's un-tracked .git/hooks directory.
+exec "$(git rev-parse --show-toplevel)/scripts/validate-commit-message.sh" "$1"

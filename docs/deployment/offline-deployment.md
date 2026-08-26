@@ -38,9 +38,10 @@ variant is actually used — see `docs/deployment/release-process.md`.
   contain no reference to `fonts.googleapis.com`,
   `fonts.gstatic.com`, `cdn.jsdelivr.net`, `unpkg.com`,
   `cdnjs.cloudflare.com`, `ajax.googleapis.com`, `fonts.bunny.net`, or
-  `cdn.tailwindcss.com`. This check was automated in the frontend CI
-  workflow until the GitHub Actions pipeline was retired; it is now a
-  **manual release step** — see `docs/offline-assets.md` for the command.
+  `cdn.tailwindcss.com`. *Historical status: this check ran as a frontend
+  CI workflow step during that phase. The workflow has since been retired;
+  the equivalent validation is now executed manually* — see
+  [`../offline-assets.md`](../offline-assets.md) for the exact command.
 - **Two real CDN dependencies found and removed this phase**: an
   active `@import url('https://fonts.googleapis.com/...')` in
   `frontend/src/assets/main.css` (replaced with 10 local `@import`

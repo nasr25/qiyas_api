@@ -217,7 +217,7 @@ Load testing uses k6 (never Playwright) — see
 
 `scripts/scan-prohibited-references.sh` deterministically scans every
 currently tracked file for references to automated code-generation
-tools and fails the build if any unreviewed match is found — see
+tools and exits non-zero if any unreviewed match is found — see
 [`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
 Run it manually — `bash scripts/scan-prohibited-references.sh` — alongside
 `composer audit` and the full test suite. It ran automatically on every push
