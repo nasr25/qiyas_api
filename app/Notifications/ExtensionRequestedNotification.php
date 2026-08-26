@@ -14,7 +14,10 @@ class ExtensionRequestedNotification extends Notification implements ShouldQueue
 
     public function __construct(private readonly ExtensionRequest $extensionRequest) {}
 
-    public function via(object $notifiable): array { return ['database', 'mail']; }
+    public function via(object $notifiable): array
+    {
+        return ['database', 'mail'];
+    }
 
     public function toMail(object $notifiable): MailMessage
     {
@@ -28,11 +31,11 @@ class ExtensionRequestedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'            => 'extension_requested',
-            'extension_id'    => $this->extensionRequest->id,
-            'document_title'  => $this->extensionRequest->document?->title,
-            'message_ar'      => 'طلب تمديد جديد بانتظار مراجعتك',
-            'message_en'      => 'New extension request pending your review',
+            'type' => 'extension_requested',
+            'extension_id' => $this->extensionRequest->id,
+            'document_title' => $this->extensionRequest->document?->title,
+            'message_ar' => 'طلب تمديد جديد بانتظار مراجعتك',
+            'message_en' => 'New extension request pending your review',
         ];
     }
 }

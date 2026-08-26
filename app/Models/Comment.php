@@ -13,13 +13,30 @@ class Comment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['commentable_type', 'commentable_id', 'user_id', 'body', 'parent_id'];
+    protected $fillable = ['commentable_type', 'commentable_id', 'compliance_program_id', 'user_id', 'body', 'parent_id'];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $comment) {
+            if (! $comment->compliance_program_id) {
+                $commentable = $comment->commentable;
+                if ($commentable && isset($commentable->compliance_program_id)) {
+                    $comment->compliance_program_id = $commentable->compliance_program_id;
+                }
+            }
+        });
+    }
 
     // ─── Relationships ───────────────────────────────────────────────────────
 
     public function commentable()
     {
         return $this->morphTo();
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
     }
 
     public function user()

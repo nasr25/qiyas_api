@@ -4,7 +4,6 @@ namespace App\Exports;
 
 use App\Models\AssessmentCycle;
 use App\Models\Department;
-use App\Models\Document;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -42,13 +41,13 @@ class DepartmentProgressExport implements FromCollection, WithHeadings, WithStyl
     public function collection()
     {
         return Department::withCount([
-            'documents as total'        => fn($q) => $q->where('cycle_id', $this->cycle->id),
-            'documents as approved'     => fn($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'approved'),
-            'documents as under_review' => fn($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'under_review'),
-            'documents as rejected'     => fn($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'rejected'),
-            'documents as draft'        => fn($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'draft'),
-            'documents as overdue'      => fn($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'overdue'),
-        ])->get()->map(fn($dept, $i) => [
+            'documents as total' => fn ($q) => $q->where('cycle_id', $this->cycle->id),
+            'documents as approved' => fn ($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'approved'),
+            'documents as under_review' => fn ($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'under_review'),
+            'documents as rejected' => fn ($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'rejected'),
+            'documents as draft' => fn ($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'draft'),
+            'documents as overdue' => fn ($q) => $q->where('cycle_id', $this->cycle->id)->where('status', 'overdue'),
+        ])->get()->map(fn ($dept, $i) => [
             $i + 1,
             $dept->name_ar,
             $dept->name_en,
@@ -58,7 +57,7 @@ class DepartmentProgressExport implements FromCollection, WithHeadings, WithStyl
             $dept->rejected,
             $dept->draft,
             $dept->overdue,
-            $dept->total > 0 ? round(($dept->approved / $dept->total) * 100, 1) . '%' : '0%',
+            $dept->total > 0 ? round(($dept->approved / $dept->total) * 100, 1).'%' : '0%',
         ]);
     }
 

@@ -1,6 +1,8 @@
 *.log
 .DS_Store
 .env
+.env.*
+!.env.example
 .env.backup
 .env.production
 .phpactor.json
@@ -19,6 +21,9 @@
 /storage/*.key
 /storage/app/private
 /storage/app/public
+# Contains real DB dumps/user data/secrets — never committed.
+/storage/backups
+tests/load/results
 /storage/framework/cache
 /storage/framework/sessions
 /storage/framework/views
@@ -29,3 +34,4 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+release-manifest-*.json

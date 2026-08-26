@@ -10,10 +10,11 @@ use Illuminate\Database\Eloquent\Model;
 class AuditLog extends Model
 {
     public $timestamps = false;
+
     public $updatable = false;
 
     protected $fillable = [
-        'user_id', 'role', 'department_id', 'action', 'model_type', 'model_id',
+        'user_id', 'role', 'department_id', 'compliance_program_id', 'action', 'model_type', 'model_id',
         'old_values', 'new_values', 'description',
         'ip_address', 'user_agent', 'created_at',
     ];
@@ -30,6 +31,11 @@ class AuditLog extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
     }
 
     /** Returns the audited model instance if it still exists. */

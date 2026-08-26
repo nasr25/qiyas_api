@@ -18,10 +18,10 @@ class LogEmailSending
 
             $log = EmailLog::create([
                 'to_address' => collect($message->getTo())->map(fn ($a) => $a->getAddress())->implode(', '),
-                'subject'    => $message->getSubject(),
-                'body'       => $message->getHtmlBody() ?: $message->getTextBody(),
-                'status'     => 'pending',
-                'mailer'     => config('mail.default'),
+                'subject' => $message->getSubject(),
+                'body' => $message->getHtmlBody() ?: $message->getTextBody(),
+                'status' => 'pending',
+                'mailer' => config('mail.default'),
             ]);
 
             $message->getHeaders()->addTextHeader('X-Email-Log', (string) $log->id);

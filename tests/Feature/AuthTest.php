@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,7 +27,7 @@ class AuthTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $user->id,
-            'action'  => 'auth.login',
+            'action' => 'auth.login',
         ]);
     }
 
@@ -66,7 +65,7 @@ class AuthTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $user->id,
-            'action'  => 'auth.quick_login',
+            'action' => 'auth.quick_login',
         ]);
     }
 
@@ -81,9 +80,9 @@ class AuthTest extends TestCase
         ])->assertOk();
 
         $this->assertDatabaseHas('audit_logs', [
-            'user_id'       => $user->id,
-            'action'        => 'auth.login',
-            'role'          => 'employee',
+            'user_id' => $user->id,
+            'action' => 'auth.login',
+            'role' => 'employee',
             'department_id' => $dept->id,
         ]);
     }

@@ -14,7 +14,10 @@ class ExtensionRejectedNotification extends Notification implements ShouldQueue
 
     public function __construct(private readonly ExtensionRequest $extensionRequest) {}
 
-    public function via(object $notifiable): array { return ['database', 'mail']; }
+    public function via(object $notifiable): array
+    {
+        return ['database', 'mail'];
+    }
 
     public function toMail(object $notifiable): MailMessage
     {
@@ -27,10 +30,10 @@ class ExtensionRejectedNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'type'         => 'extension_rejected',
+            'type' => 'extension_rejected',
             'extension_id' => $this->extensionRequest->id,
-            'message_ar'   => 'تم رفض طلب التمديد الخاص بك',
-            'message_en'   => 'Your extension request has been rejected',
+            'message_ar' => 'تم رفض طلب التمديد الخاص بك',
+            'message_en' => 'Your extension request has been rejected',
         ];
     }
 }

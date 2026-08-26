@@ -1,12 +1,58 @@
-# Qiyas Platform — Backend (Laravel API)
+# Government Compliance Management Platform — Backend (Laravel API)
 
-Enterprise platform for managing and tracking **DGA Qiyas** digital‑government
-compliance: assessment cycles, standards, evidence documents, and the
-review/approval workflow.
+**Author:** Nasser
+
+Multi-program government compliance platform hosting four active
+Compliance Programs on one **dynamic compliance engine**: **Qiyas** (DGA
+digital-government compliance), **Sumoud**, **ECC**, and **NDMO**.
+
+**Hierarchy depth is data, not code.** Each program defines its own
+structure — how many levels, what they are called in Arabic and English,
+which are assignable, assessable, evidence-bearing, and which appear in
+dashboards, reports and filters. Adding a level is inserting a row; it
+requires no source-code change and no deployment. The four live programs
+run at three different depths (3 / 5 / 5 / 6) through one code path, and
+test fixtures prove the same engine at 3, 5 and 7 levels.
+
+`ComplianceNode` is the **single authoritative model** for compliance
+content. The legacy `Standard` authoring path was retired — see
+[`docs/dynamic-hierarchy-migration-plan.md`](docs/dynamic-hierarchy-migration-plan.md).
+
+Start here:
+[`docs/dynamic-compliance-structure.md`](docs/dynamic-compliance-structure.md) ·
+[`docs/hierarchy-data-model.md`](docs/hierarchy-data-model.md) ·
+[`docs/program-structure-settings.md`](docs/program-structure-settings.md)
 
 - **Stack:** Laravel 13 (REST API), JWT auth (tymon/jwt-auth), Spatie RBAC, MySQL 8
-- **Frontend:** Vue 3 SPA (separate repo `qiyas_frontend`)
+- **Frontend:** Vue 3 SPA + Tailwind CSS (separate repo `qiyas_frontend`) — see that repo's README
 - **API base:** `/api/v1`
+- **No artificial intelligence functionality of any kind** is present anywhere in this platform — see [`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
+- **Offline-first:** the platform runs with zero public-internet access — see [`docs/offline-assets.md`](docs/offline-assets.md).
+
+## Platform administration (Super Admin)
+
+- [`docs/administration/super-admin-guide.md`](docs/administration/super-admin-guide.md) — overview of every Super Admin capability
+- [`docs/administration/branding.md`](docs/administration/branding.md) — versioned logo/favicon management
+- [`docs/administration/smtp-settings.md`](docs/administration/smtp-settings.md) — encrypted-at-rest SMTP configuration
+- [`docs/administration/email-templates.md`](docs/administration/email-templates.md) — notification email template editing
+- [`docs/administration/system-settings.md`](docs/administration/system-settings.md) — the full settings catalog
+
+## Operations & deployment
+
+- [`docs/deployment/iis-production.md`](docs/deployment/iis-production.md), [`offline-deployment.md`](docs/deployment/offline-deployment.md), [`release-process.md`](docs/deployment/release-process.md), [`rollback.md`](docs/deployment/rollback.md)
+- [`docs/operations/operations-guide.md`](docs/operations/operations-guide.md), [`queue-and-scheduler.md`](docs/operations/queue-and-scheduler.md), [`monitoring.md`](docs/operations/monitoring.md), [`health-checks.md`](docs/operations/health-checks.md), [`troubleshooting.md`](docs/operations/troubleshooting.md)
+- [`docs/backup/backup-guide.md`](docs/backup/backup-guide.md), [`restore-guide.md`](docs/backup/restore-guide.md), [`docs/disaster-recovery.md`](docs/disaster-recovery.md)
+
+### Multi-program architecture docs
+
+- [`docs/multi-program-architecture.md`](docs/multi-program-architecture.md) — ComplianceProgram model, generic hierarchy, routing, security model
+- [`docs/qiyas-migration-plan.md`](docs/qiyas-migration-plan.md) — how existing Qiyas data was migrated, verification, rollback
+- [`docs/roles-and-scopes.md`](docs/roles-and-scopes.md) — platform vs. program vs. department role matrix, Quick Login accounts
+
+```bash
+php artisan compliance:migrate-qiyas    # (re)map users onto program_user_roles, idempotent
+php artisan compliance:verify-migration # read-only integrity report
+```
 
 ---
 
@@ -23,29 +69,47 @@ php artisan storage:link
 php artisan serve
 ```
 
-After `migrate --seed` the platform is **immediately usable and fully populated**
-(departments, all roles, an active cycle, sample standards/requirements/documents,
-notifications, audit logs). Re‑populate any time with:
+After `migrate --seed` the platform is **immediately usable and fully populated**:
+departments, all roles, each program's own hierarchy structure, hierarchy
+content built from that structure, live assignments and evidence,
+notifications and audit logs.
 
 ```bash
-php artisan system:demo-data
+php artisan system:demo-data              # re-populate platform demo data
+php artisan compliance:seed-test-fixtures # 3-, 5-, 7-level test programs (+ TESTX)
 ```
 
-The 89 real DGA standards load separately into a draft cycle via
-`php artisan db:seed --class=StandardsCatalogSeeder`.
+Program content is authored through the hierarchy screens or imported from
+the program's own generated XLSX template — see
+[`docs/dynamic-xlsx-engine.md`](docs/dynamic-xlsx-engine.md). There is no
+longer a fixed standards catalogue: content shape follows each program's
+structure.
+
+### Verifying an installation
+
+```bash
+php artisan compliance:verify-hierarchy          # structures, nodes, level semantics
+php artisan compliance:verify-program-structure NDMO
+php artisan compliance:verify-cross-program      # program isolation
+```
 
 ---
 
-## Business Workflow
+## Business Workflow (Qiyas example)
+
+> The tables below describe the **Qiyas** program specifically, as a
+> concrete example — the underlying engine is generic and the same
+> shapes apply to Sumoud/ECC/NDMO with program-specific terminology.
+> See `docs/programs/{sumoud,ecc,ndmo}/workflow.md` for the others.
 
 | # | Question | Answer |
 |---|----------|--------|
 | 1 | Who creates the Qiyas cycle? | **Qiyas Administrator** |
-| 2 | Who imports standards? | **Qiyas Administrator** (Excel import) |
-| 3 | Who assigns standards to departments? | **Qiyas Administrator** |
-| 4 | Who sees assigned standards? | **Employees** — only standards assigned to **their own department** |
+| 2 | Who imports content? | **Program Manager** — XLSX generated from the program's own structure |
+| 3 | Who assigns requirements to departments? | **Program Manager**, on levels marked assignable |
+| 4 | Who sees assigned requirements? | **Employees** — only assignments for **their own department** |
 | 5 | Who uploads documents? | **Employees** of the assigned department |
-| 6 | Where does the employee upload? | From the **My Department Standards** page (inline, no separate module) |
+| 6 | Where does the employee upload? | From **My Requirements**, on levels that accept evidence |
 | 7 | What happens after upload? | Document stays **Draft** until submitted |
 | 8 | What happens after Submit? | Status becomes **Under Review** |
 | 9 | Who reviews documents? | **Auditor** |
@@ -70,11 +134,11 @@ Auditor `Approve` / `Reject` (with reason).
 |------------|:-----------:|:-----------:|:-------:|:--------:|:---------:|
 | Manage users / roles / settings / branding / audit logs | ✅ | — | — | — | — |
 | Create / activate / close cycle | ✅ | ✅ | — | — | — |
-| Import standards (Excel) | ✅ | ✅ | — | — | — |
-| Add standards | ✅ | ✅ | — | — | — |
-| Assign standards to departments | ✅ | ✅ | — | — | — |
+| Import content (XLSX) | ✅ | ✅ | — | — | — |
+| Author hierarchy content | ✅ | ✅ | — | — | — |
+| Assign requirements to departments | ✅ | ✅ | — | — | — |
 | View **all** departments' progress | ✅ | ✅ | ✅ | — | ✅ |
-| View **own** department standards | ✅ | ✅ | ✅ (all) | ✅ (own) | aggregate |
+| View **own** department assignments | ✅ | ✅ | ✅ (all) | ✅ (own) | aggregate |
 | Upload / edit (draft·rejected) / submit documents | ✅ | — | — | ✅ (own dept) | — |
 | Approve / reject documents (+ reason) | ✅ | — | ✅ | — | — |
 | Approve / reject extension requests | ✅ | — | ✅ | — | — |
@@ -114,7 +178,7 @@ user (name · role · department) and logs in with no password. The panel and th
 Authorization is enforced on the **backend**, not just hidden in the UI:
 
 - **Employees** are hard‑scoped to their own `department_id`. They cannot read
-  or modify another department's standards, documents, comments, statistics, or
+  or modify another department's assignments, evidence, comments, statistics, or
   files — even by changing an id in the URL (the API returns **403**). Endpoints
   filter by the authenticated user's department regardless of client input.
 - **Auditors** can read/review documents across **all** departments.
@@ -135,9 +199,25 @@ request/approve/reject, and comment creation.
 
 ## Tests
 
-Feature tests covering role permissions and department data isolation live in
-`tests/Feature`. Run them with:
+Backend feature/unit tests (PHPUnit) live in `tests/Feature` and
+`tests/Unit`:
 
 ```bash
 php artisan test
 ```
+
+Frontend end-to-end tests (Playwright) live in the `frontend` repo at
+`tests/e2e/` and require an isolated E2E environment — see
+[`docs/testing/playwright-guide.md`](docs/testing/playwright-guide.md).
+
+Load testing uses k6 (never Playwright) — see
+[`docs/testing/load-testing.md`](docs/testing/load-testing.md).
+
+## CI quality gate
+
+`scripts/scan-prohibited-references.sh` deterministically scans every
+currently tracked file for references to automated code-generation
+tools and fails the build if any unreviewed match is found — see
+[`docs/current-repository-cleanup.md`](docs/current-repository-cleanup.md).
+It runs in CI (`.github/workflows/ci.yml`) alongside `composer audit`
+and the full test suite.

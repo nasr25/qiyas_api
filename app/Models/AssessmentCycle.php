@@ -6,35 +6,59 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * AssessmentCycle represents an annual Qiyas assessment period.
- * Only one cycle can be Active at a time.
+ * AssessmentCycle represents an annual Qiyas assessment period and serves as
+ * the ProgramCycle entity in the generic hierarchy (ComplianceProgram →
+ * ProgramCycle → ...). Only one cycle per program can be current at a time.
  */
 class AssessmentCycle extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'name', 'year', 'start_date', 'end_date',
-        'status', 'final_score', 'closing_notes',
-        'activated_at', 'closed_at', 'created_by',
+        'compliance_program_id', 'content_version_id', 'name', 'name_ar', 'name_en', 'year', 'start_date', 'end_date',
+        'status', 'is_current', 'final_score', 'closing_notes', 'settings',
+        'activated_at', 'closed_at', 'closed_by', 'created_by',
     ];
 
     protected function casts(): array
     {
         return [
-            'start_date'   => 'date',
-            'end_date'     => 'date',
+            'start_date' => 'date',
+            'end_date' => 'date',
             'activated_at' => 'datetime',
-            'closed_at'    => 'datetime',
-            'final_score'  => 'decimal:2',
+            'closed_at' => 'datetime',
+            'final_score' => 'decimal:2',
+            'is_current' => 'boolean',
+            'settings' => 'array',
         ];
     }
 
     // ─── Relationships ───────────────────────────────────────────────────────
 
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
+    }
+
+    /** The framework content version this cycle was created against (nullable — Qiyas/Sumoud don't use content versioning). */
+    public function contentVersion()
+    {
+        return $this->belongsTo(ComplianceContentVersion::class, 'content_version_id');
+    }
+
+    public function complianceNodes()
+    {
+        return $this->hasMany(ComplianceNode::class, 'program_cycle_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function closer()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 
     public function standards()
@@ -45,6 +69,16 @@ class AssessmentCycle extends Model
     public function documents()
     {
         return $this->hasMany(Document::class, 'cycle_id');
+    }
+
+    public function requirementAssignments()
+    {
+        return $this->hasMany(RequirementAssignment::class, 'program_cycle_id');
+    }
+
+    public function evidenceSubmissions()
+    {
+        return $this->hasMany(EvidenceSubmission::class, 'program_cycle_id');
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -71,5 +105,10 @@ class AssessmentCycle extends Model
     public function scopeDraft($query)
     {
         return $query->where('status', 'draft');
+    }
+
+    public function scopeForProgram($query, ComplianceProgram $program)
+    {
+        return $query->where('compliance_program_id', $program->id);
     }
 }

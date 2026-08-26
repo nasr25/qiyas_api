@@ -13,7 +13,7 @@ class Standard extends Model
     use HasFactory;
 
     protected $fillable = [
-        'cycle_id', 'standard_number', 'name_ar', 'name_en',
+        'cycle_id', 'compliance_program_id', 'compliance_node_id', 'content_version_id', 'standard_number', 'name_ar', 'name_en',
         'description', 'version', 'weight', 'due_date', 'is_active',
         // DGA Qiyas catalog fields
         'perspective', 'axis', 'application_requirements',
@@ -24,9 +24,19 @@ class Standard extends Model
     {
         return [
             'is_active' => 'boolean',
-            'due_date'  => 'date',
-            'weight'    => 'decimal:2',
+            'due_date' => 'date',
+            'weight' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $standard) {
+            if (! $standard->compliance_program_id && $standard->cycle_id) {
+                $standard->compliance_program_id = AssessmentCycle::whereKey($standard->cycle_id)
+                    ->value('compliance_program_id');
+            }
+        });
     }
 
     // ─── Relationships ───────────────────────────────────────────────────────
@@ -34,6 +44,22 @@ class Standard extends Model
     public function cycle()
     {
         return $this->belongsTo(AssessmentCycle::class, 'cycle_id');
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(ComplianceProgram::class, 'compliance_program_id');
+    }
+
+    /** The ComplianceNode this row mirrors, for programs using the deep hierarchy engine (e.g. ECC) — nullable for Qiyas/Sumoud. */
+    public function complianceNode()
+    {
+        return $this->belongsTo(ComplianceNode::class, 'compliance_node_id');
+    }
+
+    public function contentVersion()
+    {
+        return $this->belongsTo(ComplianceContentVersion::class, 'content_version_id');
     }
 
     public function departments()

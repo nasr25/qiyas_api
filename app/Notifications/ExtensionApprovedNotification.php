@@ -14,23 +14,26 @@ class ExtensionApprovedNotification extends Notification implements ShouldQueue
 
     public function __construct(private readonly ExtensionRequest $extensionRequest) {}
 
-    public function via(object $notifiable): array { return ['database', 'mail']; }
+    public function via(object $notifiable): array
+    {
+        return ['database', 'mail'];
+    }
 
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
             ->subject('تمت الموافقة على طلب التمديد | Extension Approved')
-            ->line("Your extension request has been approved.")
+            ->line('Your extension request has been approved.')
             ->line("New date: {$this->extensionRequest->requested_date}");
     }
 
     public function toArray(object $notifiable): array
     {
         return [
-            'type'         => 'extension_approved',
+            'type' => 'extension_approved',
             'extension_id' => $this->extensionRequest->id,
-            'message_ar'   => 'تمت الموافقة على طلب التمديد الخاص بك',
-            'message_en'   => 'Your extension request has been approved',
+            'message_ar' => 'تمت الموافقة على طلب التمديد الخاص بك',
+            'message_en' => 'Your extension request has been approved',
         ];
     }
 }

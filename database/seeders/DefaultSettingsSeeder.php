@@ -14,8 +14,8 @@ class DefaultSettingsSeeder extends Seeder
     {
         $defaults = [
             // Branding
-            ['group' => 'branding', 'key' => 'platform_name',  'value' => 'منصة قياس',         'type' => 'string'],
-            ['group' => 'branding', 'key' => 'platform_name_en','value' => 'Qiyas Platform',   'type' => 'string'],
+            ['group' => 'branding', 'key' => 'platform_name',  'value' => 'منصة إدارة الامتثال والحوكمة الحكومية', 'type' => 'string'],
+            ['group' => 'branding', 'key' => 'platform_name_en', 'value' => 'Government Compliance Management Platform', 'type' => 'string'],
             ['group' => 'branding', 'key' => 'footer_text',    'value' => 'جميع الحقوق محفوظة', 'type' => 'string'],
             ['group' => 'branding', 'key' => 'logo',           'value' => null,                 'type' => 'string'],
             ['group' => 'branding', 'key' => 'favicon',        'value' => null,                 'type' => 'string'],

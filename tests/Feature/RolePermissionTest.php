@@ -3,27 +3,38 @@
 namespace Tests\Feature;
 
 use App\Models\AssessmentCycle;
-use App\Models\Document;
+use App\Models\ComplianceNode;
+use App\Models\ComplianceProgram;
 use App\Models\Department;
-use App\Models\EvidenceRequirement;
-use App\Models\Standard;
-use App\Models\User;
+use App\Models\ProgramUserRole;
+use App\Services\HierarchyDefinitionService;
+use App\Services\WorkflowService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Feature tests for role permissions and strict department data isolation.
+ * Role permissions and strict department data isolation.
+ *
+ * Five tests that exercised the legacy Document review API were retired
+ * when that API was removed with the legacy Standard authoring path. Every
+ * guarantee they asserted is covered on the supported EvidenceSubmission
+ * path — see docs/testing/legacy-playwright-retirement.md for the
+ * test-by-test mapping.
  */
 class RolePermissionTest extends TestCase
 {
     use RefreshDatabase;
 
     protected Department $deptA;
+
     protected Department $deptB;
+
     protected AssessmentCycle $cycle;
-    protected Standard $stdA;
-    protected Standard $stdB;
+
+    protected ComplianceNode $nodeA;
+
+    protected ComplianceNode $nodeB;
 
     protected function setUp(): void
     {
@@ -36,115 +47,78 @@ class RolePermissionTest extends TestCase
         $this->deptB = $this->makeDepartment('Dept B');
 
         $this->cycle = AssessmentCycle::create([
+            'compliance_program_id' => ComplianceProgram::where('code', 'QIYAS')->value('id'),
             'name' => 'Cycle 2026', 'year' => 2026,
             'start_date' => '2026-01-01', 'end_date' => '2026-12-31',
-            'status' => 'active', 'created_by' => $admin->id,
+            'status' => 'active', 'is_current' => true, 'created_by' => $admin->id,
         ]);
 
-        $this->stdA = $this->makeStandard('A.1');
-        $this->stdA->departments()->attach($this->deptA->id, ['assigned_at' => now(), 'assigned_by' => $admin->id]);
+        // A two-level structure with one assignable node per department —
+        // the node-based equivalent of the old per-department standards.
+        $this->activateStructure(
+            ComplianceProgram::where('code', 'QIYAS')->firstOrFail(),
+            [['key' => 'domain'], ['key' => 'requirement', 'is_assignable' => true, 'is_assessable' => true, 'accepts_evidence' => true]],
+            $admin,
+        );
 
-        $this->stdB = $this->makeStandard('B.1');
-        $this->stdB->departments()->attach($this->deptB->id, ['assigned_at' => now(), 'assigned_by' => $admin->id]);
+        $this->nodeA = $this->makeNodeChain('A.1');
+        $this->nodeB = $this->makeNodeChain('B.1');
+
+        $workflow = app(WorkflowService::class);
+        $program = ComplianceProgram::where('code', 'QIYAS')->firstOrFail();
+        $workflow->assign($this->nodeA, $program, $admin, $this->deptA, null, null, null, null, null);
+        $workflow->assign($this->nodeB, $program, $admin, $this->deptB, null, null, null, null, null);
     }
 
-    private function makeStandard(string $number): Standard
+    /** Builds a root + assignable leaf and returns the leaf. */
+    private function makeNodeChain(string $code): ComplianceNode
     {
-        return Standard::create([
-            'cycle_id' => $this->cycle->id, 'standard_number' => $number,
-            'name_ar' => $number, 'name_en' => $number, 'is_active' => true,
-        ]);
-    }
+        $program = ComplianceProgram::where('code', 'QIYAS')->firstOrFail();
+        $levels = collect(app(HierarchyDefinitionService::class)->levels($program))->values();
 
-    private function makeDocument(Standard $std, Department $dept, string $status = 'under_review'): Document
-    {
-        $req = EvidenceRequirement::create([
-            'standard_id' => $std->id, 'title_ar' => 'r', 'title_en' => 'r',
-            'is_mandatory' => true, 'sort_order' => 1,
+        $root = ComplianceNode::create([
+            'compliance_program_id' => $program->id, 'program_cycle_id' => $this->cycle->id,
+            'hierarchy_level_id' => $levels[0]->id, 'node_type' => $levels[0]->key,
+            'level' => 0, 'code' => "{$code}-root", 'name_ar' => $code,
         ]);
 
-        return Document::create([
-            'requirement_id' => $req->id, 'department_id' => $dept->id, 'cycle_id' => $this->cycle->id,
-            'title' => 'Doc', 'status' => $status, 'current_version' => 1,
+        return ComplianceNode::create([
+            'compliance_program_id' => $program->id, 'program_cycle_id' => $this->cycle->id,
+            'hierarchy_level_id' => $levels[1]->id, 'parent_id' => $root->id,
+            'node_type' => $levels[1]->key, 'level' => 1, 'code' => $code, 'name_ar' => $code,
         ]);
     }
 
     // ── Employee ─────────────────────────────────────────────────────────────
 
-    public function test_employee_sees_only_own_department_standards(): void
+    /**
+     * Department isolation, rewritten for the node model.
+     *
+     * Program CONTENT (the hierarchy) is visible to every program member —
+     * an employee must be able to see the structure their work sits in.
+     * What is department-scoped is the WORK: assignments and evidence. This
+     * asserts the latter, which is where the isolation guarantee actually
+     * lives.
+     */
+    public function test_employee_sees_only_own_department_assignments(): void
     {
         $employee = $this->makeUser('employee', $this->deptA->id);
+        ProgramUserRole::create([
+            'compliance_program_id' => ComplianceProgram::where('code', 'QIYAS')->value('id'),
+            'user_id' => $employee->id, 'role_key' => 'employee',
+            'department_id' => $this->deptA->id, 'is_active' => true,
+        ]);
 
         $res = $this->withHeaders($this->authHeader($employee))
-            ->getJson("/api/v1/cycles/{$this->cycle->id}/standards");
-
-        $res->assertOk();
-        $numbers = collect($res->json('data'))->pluck('standard_number');
-        $this->assertContains('A.1', $numbers);
-        $this->assertNotContains('B.1', $numbers);
-    }
-
-    public function test_employee_cannot_access_other_department_document(): void
-    {
-        $employee = $this->makeUser('employee', $this->deptA->id);
-        $docB = $this->makeDocument($this->stdB, $this->deptB);
-
-        $this->withHeaders($this->authHeader($employee))
-            ->getJson("/api/v1/documents/{$docB->id}")
-            ->assertStatus(403);
-    }
-
-    public function test_employee_can_access_own_department_document(): void
-    {
-        $employee = $this->makeUser('employee', $this->deptA->id);
-        $docA = $this->makeDocument($this->stdA, $this->deptA);
-
-        $this->withHeaders($this->authHeader($employee))
-            ->getJson("/api/v1/documents/{$docA->id}")
+            ->getJson('/api/v1/programs/QIYAS/my-requirements')
             ->assertOk();
-    }
 
-    public function test_employee_cannot_approve_documents(): void
-    {
-        $employee = $this->makeUser('employee', $this->deptA->id);
-        $docA = $this->makeDocument($this->stdA, $this->deptA);
-
-        // Employees are not part of the auditor route group → 403.
-        $this->withHeaders($this->authHeader($employee))
-            ->postJson("/api/v1/auditor/documents/{$docA->id}/approve")
-            ->assertStatus(403);
+        $codes = collect($res->json('data'))->pluck('requirement.code');
+        $this->assertContains('A.1', $codes);
+        $this->assertNotContains('B.1', $codes, 'Another department\'s assignment must never be listed.');
     }
 
     // ── Auditor ──────────────────────────────────────────────────────────────
-
-    public function test_auditor_can_view_pending_reviews_across_departments(): void
-    {
-        $auditor = $this->makeUser('auditor');
-        $this->makeDocument($this->stdA, $this->deptA);
-        $this->makeDocument($this->stdB, $this->deptB);
-
-        $res = $this->withHeaders($this->authHeader($auditor))
-            ->getJson('/api/v1/auditor/pending-reviews');
-
-        $res->assertOk();
-        $this->assertCount(2, $res->json('data'));
-    }
-
-    public function test_auditor_reject_requires_reason(): void
-    {
-        $auditor = $this->makeUser('auditor');
-        $doc = $this->makeDocument($this->stdA, $this->deptA);
-
-        $this->withHeaders($this->authHeader($auditor))
-            ->postJson("/api/v1/auditor/documents/{$doc->id}/reject", [])
-            ->assertStatus(422);
-
-        $this->withHeaders($this->authHeader($auditor))
-            ->postJson("/api/v1/auditor/documents/{$doc->id}/reject", ['reason' => 'Incomplete evidence provided.'])
-            ->assertOk();
-
-        $this->assertEquals('rejected', $doc->fresh()->status);
-    }
 
     public function test_auditor_cannot_manage_users(): void
     {

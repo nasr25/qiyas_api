@@ -19,24 +19,24 @@ class NotificationController extends Controller
     {
         $notifications = $request->user()
             ->notifications()
-            ->when($request->unread_only, fn($q) => $q->whereNull('read_at'))
+            ->when($request->unread_only, fn ($q) => $q->whereNull('read_at'))
             ->latest()
             ->paginate($request->get('per_page', 20));
 
         return response()->json([
             'success' => true,
-            'data'    => $notifications->map(fn($n) => [
-                'id'         => $n->id,
-                'type'       => class_basename($n->type),
-                'data'       => $n->data,
-                'read_at'    => $n->read_at?->toIso8601String(),
+            'data' => $notifications->map(fn ($n) => [
+                'id' => $n->id,
+                'type' => class_basename($n->type),
+                'data' => $n->data,
+                'read_at' => $n->read_at?->toIso8601String(),
                 'created_at' => $n->created_at->toIso8601String(),
             ]),
-            'meta'    => [
+            'meta' => [
                 'unread_count' => $request->user()->unreadNotifications()->count(),
                 'current_page' => $notifications->currentPage(),
-                'last_page'    => $notifications->lastPage(),
-                'total'        => $notifications->total(),
+                'last_page' => $notifications->lastPage(),
+                'total' => $notifications->total(),
             ],
         ]);
     }
@@ -83,7 +83,7 @@ class NotificationController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => ['unread' => $request->user()->unreadNotifications()->count()],
+            'data' => ['unread' => $request->user()->unreadNotifications()->count()],
         ]);
     }
 }

@@ -39,6 +39,16 @@ class Department extends Model
         return $this->hasMany(Document::class);
     }
 
+    public function requirementAssignments()
+    {
+        return $this->hasMany(RequirementAssignment::class);
+    }
+
+    public function evidenceSubmissions()
+    {
+        return $this->hasMany(EvidenceSubmission::class);
+    }
+
     // ─── Scopes ──────────────────────────────────────────────────────────────
 
     public function scopeActive($query)

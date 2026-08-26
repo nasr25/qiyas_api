@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\AuditService;
+use App\Services\BrandingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,7 +23,12 @@ class SettingController extends Controller
      */
     public function branding(): JsonResponse
     {
-        $logo    = Setting::get('branding', 'logo');
+        // Active, versioned branding assets are the source of truth; the
+        // old flat `Setting` logo/favicon keys are only a fallback for an
+        // asset type that has never had a version uploaded through the
+        // new Super Admin branding engine. See BrandingService::activeUrls().
+        $active = app(BrandingService::class)->activeUrls();
+        $logo = Setting::get('branding', 'logo');
         $favicon = Setting::get('branding', 'favicon');
 
         $allowed = collect(explode(',', (string) Setting::get('upload', 'allowed_types', 'pdf,doc,docx,xls,xlsx,ppt,pptx,zip,jpg,jpeg,png')))
@@ -29,16 +36,20 @@ class SettingController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'platform_name'    => Setting::get('branding', 'platform_name'),
+            'data' => [
+                'platform_name' => Setting::get('branding', 'platform_name'),
                 'platform_name_en' => Setting::get('branding', 'platform_name_en'),
-                'logo_url'         => $logo ? Storage::disk('public')->url($logo) : null,
-                'favicon_url'      => $favicon ? Storage::disk('public')->url($favicon) : null,
-                'upload'           => [
+                'logo_url' => $active['logo_primary'] ?? ($logo ? Storage::disk('public')->url($logo) : null),
+                'logo_dark_url' => $active['logo_dark'] ?? null,
+                'logo_login_url' => $active['logo_login'] ?? ($active['logo_primary'] ?? null),
+                'logo_header_url' => $active['logo_header'] ?? ($active['logo_primary'] ?? null),
+                'logo_compact_url' => $active['logo_compact'] ?? null,
+                'favicon_url' => $active['favicon'] ?? ($favicon ? Storage::disk('public')->url($favicon) : null),
+                'upload' => [
                     'allowed_types' => $allowed,
-                    'max_size_mb'   => (int) Setting::get('upload', 'max_size_mb', 20),
+                    'max_size_mb' => (int) Setting::get('upload', 'max_size_mb', 20),
                 ],
-                'quick_login'      => \App\Http\Controllers\Api\Auth\AuthController::quickLoginEnabled(),
+                'quick_login' => AuthController::quickLoginEnabled(),
             ],
         ]);
     }
@@ -49,8 +60,7 @@ class SettingController extends Controller
      */
     public function index(): JsonResponse
     {
-        $settings = Setting::all()->groupBy('group')->map(fn($group) =>
-            $group->mapWithKeys(fn($s) => [$s->key => $this->castValue($s)])
+        $settings = Setting::all()->groupBy('group')->map(fn ($group) => $group->mapWithKeys(fn ($s) => [$s->key => $this->castValue($s)])
         );
 
         return response()->json(['success' => true, 'data' => $settings]);
@@ -64,7 +74,7 @@ class SettingController extends Controller
     {
         $settings = Setting::where('group', $group)
             ->get()
-            ->mapWithKeys(fn($s) => [$s->key => $this->castValue($s)]);
+            ->mapWithKeys(fn ($s) => [$s->key => $this->castValue($s)]);
 
         return response()->json(['success' => true, 'data' => $settings]);
     }
@@ -76,11 +86,11 @@ class SettingController extends Controller
     public function update(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'settings'         => ['required', 'array'],
+            'settings' => ['required', 'array'],
             'settings.*.group' => ['required', 'string', 'max:100'],
-            'settings.*.key'   => ['required', 'string', 'max:100'],
+            'settings.*.key' => ['required', 'string', 'max:100'],
             'settings.*.value' => ['nullable'],
-            'settings.*.type'  => ['nullable', 'in:string,boolean,integer,float,json'],
+            'settings.*.type' => ['nullable', 'in:string,boolean,integer,float,json'],
         ]);
 
         foreach ($data['settings'] as $setting) {
@@ -92,54 +102,15 @@ class SettingController extends Controller
         return response()->json(['success' => true, 'message' => 'Settings saved.']);
     }
 
-    /**
-     * Uploads a branding asset (logo, favicon).
-     * POST /api/v1/admin/settings/branding/upload
-     */
-    public function uploadBranding(Request $request): JsonResponse
-    {
-        // Validate by extension rather than the `image` rule: SVG files are
-        // frequently mis-detected by finfo (text/plain or text/xml), which makes
-        // the `image`/`mimes` rules reject otherwise-valid SVG logos.
-        $request->validate([
-            'type' => ['required', 'in:logo,favicon'],
-            'file' => ['required', 'file', 'max:2048'],
-        ]);
-
-        $file    = $request->file('file');
-        $ext     = strtolower($file->getClientOriginalExtension());
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
-
-        if (!in_array($ext, $allowed, true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unsupported image type. Allowed: ' . implode(', ', $allowed) . '.',
-                'errors'  => ['file' => ['Unsupported image type.']],
-            ], 422);
-        }
-
-        $type    = $request->type;
-        $path    = $file->store('branding', 'public');
-        $url     = Storage::disk('public')->url($path);
-
-        Setting::set('branding', $type, $path, 'string');
-        AuditService::log('settings.branding', "Branding {$type} updated");
-
-        return response()->json([
-            'success' => true,
-            'data'    => ['url' => $url, 'path' => $path],
-        ]);
-    }
-
     /** Casts a setting value to its declared type. */
     private function castValue(Setting $setting): mixed
     {
         return match ($setting->type) {
             'boolean' => (bool) $setting->value,
             'integer' => (int) $setting->value,
-            'float'   => (float) $setting->value,
-            'json'    => json_decode($setting->value, true),
-            default   => $setting->value,
+            'float' => (float) $setting->value,
+            'json' => json_decode($setting->value, true),
+            default => $setting->value,
         };
     }
 }
